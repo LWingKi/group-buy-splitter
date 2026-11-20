@@ -9,7 +9,6 @@ const path = require("path");
 const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT) || 3000;
-const HOST = process.env.HOST || undefined;  // e.g. 127.0.0.1 behind a reverse proxy
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const ACCESS_CODE = process.env.ACCESS_CODE || "";
@@ -29,14 +28,18 @@ if (fs.existsSync(DATA_FILE)) {
 db.users ||= {};
 db.groupbuys ||= {};
 
+// Writes are batched for 50 ms; writeNow() also runs on shutdown so nothing is lost.
 let saveTimer = null;
+function writeNow() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  const tmp = DATA_FILE + ".tmp";
+  fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
+  fs.renameSync(tmp, DATA_FILE);
+}
 function save() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const tmp = DATA_FILE + ".tmp";
-    fs.writeFileSync(tmp, JSON.stringify(db, null, 2));
-    fs.renameSync(tmp, DATA_FILE);
-  }, 50);
+  saveTimer = setTimeout(writeNow, 50);
 }
 
 // ---------- helpers ----------
@@ -487,7 +490,7 @@ function serveStatic(res, pathname) {
 purgeExpired();
 setInterval(purgeExpired, 60 * 60 * 1000);  // hourly, as well as on every request
 
-http.createServer(async (req, res) => {
+const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
   if (!url.pathname.startsWith("/api/")) return serveStatic(res, url.pathname);
   try {
@@ -499,4 +502,14 @@ http.createServer(async (req, res) => {
     res.writeHead(e.status || 500, { ...BASE_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ error: e.status ? e.message : "伺服器出錯，請稍後再試。", code: e.code }));
   }
-}).listen(PORT, HOST, () => console.log(`Group Buy Splitter running on http://${HOST || "localhost"}:${PORT}`));
+}).listen(PORT, () => console.log(`Group Buy Splitter running on http://localhost:${PORT}`));
+
+// The host stops the old version with SIGTERM when a new one goes live: save any pending change and exit cleanly.
+function shutdown(signal) {
+  console.log(`${signal} received, saving and shutting down.`);
+  try { if (saveTimer) writeNow(); } catch (e) { console.error("Could not save on shutdown:", e.message); }
+  server.close(() => process.exit(0));
+  setTimeout(() => process.exit(0), 3000).unref();  // don't wait forever for open connections
+}
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
