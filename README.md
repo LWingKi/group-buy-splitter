@@ -1,44 +1,49 @@
-# Group Buy Splitter
+# 夾單計數機
 
-Work out how much everyone owes in a group buy. People sign in with their Discord name (no password).
+計算團購（夾單）每個人要付多少錢。朋友只需輸入 Discord 名稱就可以使用，無需密碼。
 
-## Run it
+## 如何運行
 
-Requires Node 18 or newer. There are no dependencies to install.
+需要 Node.js 18 或以上版本（https://nodejs.org ）。不需要安裝其他套件。
 
 ```bash
 npm start
 ```
 
-Then open http://localhost:3000. Set `PORT` to use another port and `DATA_FILE` to choose where data is saved (default: `data.json` next to `server.js`).
+然後在瀏覽器打開 http://localhost:3000 。
 
-## Who can do what
+- `PORT`：更改端口（預設 3000）
+- `DATA_FILE`：資料儲存位置（預設為 `server.js` 旁邊的 `data.json`）
 
-| Action | Organiser | Person who joined |
+想清空所有資料：停止伺服器，刪除 `data.json`，再重新啟動。
+
+## 測試多個用戶
+
+瀏覽器會記住登入的名稱。想同時扮演兩個人，可以用一個普通視窗加一個無痕視窗，或者按右上角的「轉換用戶」。
+
+## 權限
+
+| 操作 | 團長 | 團員 |
 |---|---|---|
-| Add items | ✅ | ✅ (price stays "TBC") |
-| Rename items | ✅ | ✅ |
-| Set or change item prices | ✅ | ❌ |
-| Remove items | ✅ | ❌ |
-| Add people | ✅ | ✅ |
-| Remove people | ✅ anyone | Only themselves (leave) |
-| Change quantities | ✅ anyone's | Only their own row |
-| Set shipping and how it's split | ✅ | ✅ |
-| See all totals | ✅ | ✅ |
-| Rename / delete the group buy | ✅ | ❌ |
+| 加入貨品 | ✅ | ✅（價錢顯示「待定」） |
+| 更改貨品名稱 | ✅ | ✅ |
+| 設定或更改價錢 | ✅ | ❌ |
+| 移除貨品 | ✅ | ❌ |
+| 加入團員 | ✅ | ✅ |
+| 移除團員 | ✅ 任何人 | 只可移除自己（退出） |
+| 更改數量 | ✅ 任何人 | 只可改自己那一行 |
+| 設定運費及分攤方式 | ✅ | ✅ |
+| 查看所有總數 | ✅ | ✅ |
+| 更改團購名稱／刪除團購 | ✅ | ❌ |
 
-## How totals are worked out
+## 計算方法
 
-- Per person: their items (quantity × price) plus their share of shipping.
-- Per item: total quantity ordered × price.
-- Whole order: all items plus shipping.
-- Shipping can be split by item cost (default), by number of items, or equally between people who ordered something. Shares are rounded to the cent so they always add up to the exact shipping amount.
-- Items without a price yet are left out of the totals until the organiser sets one.
+- 每人：貨品（數量 × 單價）加上分攤的運費。
+- 每件貨品：總件數 × 單價。
+- 全單：所有貨品加運費。
+- 運費可以按貨品金額（預設）、按件數，或由有落單的人平分。每人金額計至仙位，加起來一定等於全單運費。
+- 未定價的貨品在團長設定價錢前不會計入總數。
 
-## Note on security
+## 注意
 
-There are no passwords, by design, so anyone who types someone else's Discord name can act as them. That's fine for a trusted Discord server, but don't use it for anything sensitive.
-
-## Deploying
-
-Any host that runs Node works (Render, Railway, Fly.io, a VPS). Make sure `DATA_FILE` points to persistent storage, since some hosts wipe the disk on every deploy.
+因為沒有密碼，任何人輸入別人的 Discord 名稱就可以用對方的身份操作。朋友之間使用沒有問題，但不要用於重要用途。
