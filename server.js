@@ -1,4 +1,4 @@
-// Group Buy Splitter: a zero-dependency Node server.
+// 夾單計數機 (Group Buy Splitter): a zero-dependency Node server.
 // Data is kept in data.json next to this file (override with DATA_FILE).
 // Identity is a Discord name sent in the X-User header; there are no passwords.
 
@@ -36,8 +36,8 @@ const newId = () => crypto.randomBytes(6).toString("base64url");
 
 function cleanName(raw) {
   const name = String(raw ?? "").trim().replace(/\s+/g, " ");
-  if (!name) throw httpError(400, "Enter a Discord name.");
-  if (name.length > 40) throw httpError(400, "Names can be at most 40 characters.");
+  if (!name) throw httpError(400, "請輸入 Discord 名稱。");
+  if (name.length > 40) throw httpError(400, "名稱最多 40 個字元。");
   return name;
 }
 
@@ -54,8 +54,8 @@ function httpError(status, message) { const e = new Error(message); e.status = s
 function toCents(v, field) {
   if (v === null || v === "" || v === undefined) return null;
   const n = Number(v);
-  if (!Number.isFinite(n) || n < 0) throw httpError(400, `${field} must be a number of 0 or more.`);
-  if (n > 1e7) throw httpError(400, `${field} is too large.`);
+  if (!Number.isFinite(n) || n < 0) throw httpError(400, `${field}必須是 0 或以上的數字。`);
+  if (n > 1e7) throw httpError(400, `${field}太大。`);
   return Math.round(n * 100);
 }
 
@@ -123,14 +123,14 @@ function view(gb, me) {
 
 function loadGb(id, me, { member = true } = {}) {
   const gb = db.groupbuys[id];
-  if (!gb) throw httpError(404, "That group buy doesn't exist or was deleted.");
+  if (!gb) throw httpError(404, "找不到這個團購，可能已被刪除。");
   const v = view(gb, me);
-  if (member && v.role === "viewer") throw httpError(403, "Only the organiser and people in this group buy can change it.");
+  if (member && v.role === "viewer") throw httpError(403, "只有團長和團員可以修改這個團購。");
   return { gb, role: v.role };
 }
 
 function requireOrganiser(role, what) {
-  if (role !== "organiser") throw httpError(403, `Only the organiser can ${what}.`);
+  if (role !== "organiser") throw httpError(403, `只有團長可以${what}。`);
 }
 
 // ---------- API ----------
@@ -145,7 +145,7 @@ async function api(req, res, url) {
   }
 
   const meHeader = req.headers["x-user"];
-  if (!meHeader) throw httpError(401, "Sign in with your Discord name first.");
+  if (!meHeader) throw httpError(401, "請先輸入你的 Discord 名稱登入。");
   const me = ensureUser(decodeURIComponent(meHeader)).name;
 
   if (method === "GET" && parts[0] === "users") {
@@ -172,14 +172,14 @@ async function api(req, res, url) {
     };
   }
 
-  if (parts[0] !== "groupbuys") throw httpError(404, "Not found.");
+  if (parts[0] !== "groupbuys") throw httpError(404, "找不到。");
   const id = parts[1];
 
   // Create
   if (!id && method === "POST") {
     const name = String(body.name || "").trim();
-    if (!name) throw httpError(400, "Give the group buy a name.");
-    if (name.length > 80) throw httpError(400, "Group buy names can be at most 80 characters.");
+    if (!name) throw httpError(400, "請輸入團購名稱。");
+    if (name.length > 80) throw httpError(400, "團購名稱最多 80 個字元。");
     const gb = {
       id: newId(), name, organiser: me, createdAt: Date.now(),
       currency: String(body.currency || "$").slice(0, 4),
@@ -190,7 +190,7 @@ async function api(req, res, url) {
     return view(gb, me);
   }
 
-  if (!id) throw httpError(404, "Not found.");
+  if (!id) throw httpError(404, "找不到。");
 
   // Read (anyone with the link can view)
   if (parts.length === 2 && method === "GET") {
@@ -203,27 +203,27 @@ async function api(req, res, url) {
   // Update group buy settings
   if (parts.length === 2 && method === "PATCH") {
     if ("name" in body) {
-      requireOrganiser(role, "rename the group buy");
+      requireOrganiser(role, "更改團購名稱");
       const n = String(body.name || "").trim();
-      if (!n) throw httpError(400, "Give the group buy a name.");
+      if (!n) throw httpError(400, "請輸入團購名稱。");
       gb.name = n.slice(0, 80);
     }
     if ("currency" in body) {
-      requireOrganiser(role, "change the currency");
+      requireOrganiser(role, "更改貨幣");
       gb.currency = String(body.currency || "$").slice(0, 4);
     }
     if ("shippingCents" in body || "shipping" in body) {
-      gb.shippingCents = toCents(body.shipping ?? body.shippingCents / 100, "Shipping") || 0;
+      gb.shippingCents = toCents(body.shipping ?? body.shippingCents / 100, "運費") || 0;
     }
     if ("shippingSplit" in body) {
-      if (!["subtotal", "equal", "items"].includes(body.shippingSplit)) throw httpError(400, "Unknown shipping split.");
+      if (!["subtotal", "equal", "items"].includes(body.shippingSplit)) throw httpError(400, "未知的運費分攤方式。");
       gb.shippingSplit = body.shippingSplit;
     }
     save(); return view(gb, me);
   }
 
   if (parts.length === 2 && method === "DELETE") {
-    requireOrganiser(role, "delete the group buy");
+    requireOrganiser(role, "刪除團購");
     delete db.groupbuys[id]; save();
     return { deleted: true };
   }
@@ -233,28 +233,28 @@ async function api(req, res, url) {
     const itemId = parts[3];
     if (!itemId && method === "POST") {
       const name = String(body.name || "").trim();
-      if (!name) throw httpError(400, "Give the item a name.");
+      if (!name) throw httpError(400, "請輸入貨品名稱。");
       let priceCents = null;
       if (body.price !== undefined && body.price !== "" && body.price !== null) {
-        requireOrganiser(role, "set item prices");
-        priceCents = toCents(body.price, "Price");
+        requireOrganiser(role, "設定貨品價錢");
+        priceCents = toCents(body.price, "價錢");
       }
       gb.items.push({ id: newId(), name: name.slice(0, 80), priceCents, addedBy: me });
       save(); return view(gb, me);
     }
     const item = gb.items.find((it) => it.id === itemId);
-    if (!item) throw httpError(404, "That item was removed.");
+    if (!item) throw httpError(404, "這件貨品已被移除。");
     if (method === "PATCH") {
-      if ("price" in body) { requireOrganiser(role, "change item prices"); item.priceCents = toCents(body.price, "Price"); }
+      if ("price" in body) { requireOrganiser(role, "更改貨品價錢"); item.priceCents = toCents(body.price, "價錢"); }
       if ("name" in body) {
         const n = String(body.name || "").trim();
-        if (!n) throw httpError(400, "Give the item a name.");
+        if (!n) throw httpError(400, "請輸入貨品名稱。");
         item.name = n.slice(0, 80);
       }
       save(); return view(gb, me);
     }
     if (method === "DELETE") {
-      requireOrganiser(role, "remove items");
+      requireOrganiser(role, "移除貨品");
       gb.items = gb.items.filter((it) => it.id !== itemId);
       for (const q of Object.values(gb.quantities)) delete q[itemId];
       save(); return view(gb, me);
@@ -265,12 +265,12 @@ async function api(req, res, url) {
   if (parts[2] === "participants") {
     if (method === "POST") {
       const u = ensureUser(body.username).name;
-      if (gb.participants.some((p) => key(p) === key(u))) throw httpError(409, `${u} is already in this group buy.`);
+      if (gb.participants.some((p) => key(p) === key(u))) throw httpError(409, `${u} 已經在這個團購內。`);
       gb.participants.push(u); save(); return view(gb, me);
     }
     if (method === "DELETE") {
       const target = decodeURIComponent(parts[3] || "");
-      if (role !== "organiser" && key(target) !== key(me)) throw httpError(403, "You can only remove yourself. Ask the organiser to remove someone else.");
+      if (role !== "organiser" && key(target) !== key(me)) throw httpError(403, "你只可以將自己移除。如要移除其他人，請聯絡團長。");
       gb.participants = gb.participants.filter((p) => key(p) !== key(target));
       delete gb.quantities[key(target)];
       save(); return view(gb, me);
@@ -280,24 +280,24 @@ async function api(req, res, url) {
   // Quantities
   if (parts[2] === "quantities" && method === "PUT") {
     const target = gb.participants.find((p) => key(p) === key(body.username));
-    if (!target) throw httpError(400, "That person isn't in this group buy.");
-    if (role !== "organiser" && key(target) !== key(me)) throw httpError(403, "You can only change your own quantities.");
-    if (!gb.items.some((it) => it.id === body.itemId)) throw httpError(404, "That item was removed.");
+    if (!target) throw httpError(400, "這個人不在這個團購內。");
+    if (role !== "organiser" && key(target) !== key(me)) throw httpError(403, "你只可以更改自己的數量。");
+    if (!gb.items.some((it) => it.id === body.itemId)) throw httpError(404, "這件貨品已被移除。");
     const q = Number(body.qty);
-    if (!Number.isInteger(q) || q < 0 || q > 100000) throw httpError(400, "Quantity must be a whole number of 0 or more.");
+    if (!Number.isInteger(q) || q < 0 || q > 100000) throw httpError(400, "數量必須是 0 或以上的整數。");
     const row = (gb.quantities[key(target)] ||= {});
     if (q === 0) delete row[body.itemId]; else row[body.itemId] = q;
     save(); return view(gb, me);
   }
 
-  throw httpError(404, "Not found.");
+  throw httpError(404, "找不到。");
 }
 
 function readJson(req) {
   return new Promise((resolve, reject) => {
     let data = "";
-    req.on("data", (c) => { data += c; if (data.length > 1e5) { reject(httpError(413, "Request too large.")); req.destroy(); } });
-    req.on("end", () => { try { resolve(data ? JSON.parse(data) : {}); } catch { reject(httpError(400, "Invalid JSON.")); } });
+    req.on("data", (c) => { data += c; if (data.length > 1e5) { reject(httpError(413, "請求太大。")); req.destroy(); } });
+    req.on("end", () => { try { resolve(data ? JSON.parse(data) : {}); } catch { reject(httpError(400, "資料格式錯誤。")); } });
     req.on("error", reject);
   });
 }
@@ -323,6 +323,6 @@ http.createServer(async (req, res) => {
   } catch (e) {
     if (!e.status) console.error(e);
     res.writeHead(e.status || 500, { "Content-Type": "application/json" });
-    res.end(JSON.stringify({ error: e.status ? e.message : "Something went wrong on the server." }));
+    res.end(JSON.stringify({ error: e.status ? e.message : "伺服器出錯，請稍後再試。" }));
   }
 }).listen(PORT, () => console.log(`Group Buy Splitter running on http://localhost:${PORT}`));

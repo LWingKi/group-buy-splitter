@@ -1,12 +1,12 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-Hant-HK">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>夾團台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=Noto+Sans+HK:wght@400;500;700&family=JetBrains+Mono:wght@500&display=swap">
 <style>
 /* Layout: one centred column; the order grid is the hero of each group buy page. */
 :root {
@@ -22,8 +22,8 @@
   --warn: #9a5b00;
   --warn-soft: #fbedd3;
   --danger: #b3261e;
-  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
-  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --display: "Bricolage Grotesque", "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", "Noto Sans HK", "PingFang HK", "Microsoft JhengHei", system-ui, -apple-system, "Segoe UI", sans-serif;
   --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   color-scheme: light;
 }
@@ -85,6 +85,7 @@ button.icon { padding: 4px 8px; line-height: 1; background: none; border-color: 
 button.icon:hover { color: var(--danger); border-color: var(--line); }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row > input, .row > select { flex: 1 1 140px; }
+.row > input[type="checkbox"] { flex: 0 0 auto; width: auto; margin: 0; }
 
 /* panels */
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; min-width: 0; align-content: start; }
@@ -186,7 +187,7 @@ let pollTimer = null;
 // ---------- utilities ----------
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
-const money = (cents, cur = "$") => cents == null ? "—" : cur + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const money = (cents, cur = "$") => cents == null ? "—" : cur + (cents / 100).toLocaleString("zh-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const plain = (cents) => cents == null ? "" : (cents / 100).toFixed(2);
 
 function toast(msg, isErr = false) {
@@ -202,7 +203,7 @@ async function call(method, path, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed.");
+  if (!res.ok) throw new Error(data.error || "操作失敗，請再試。");
   return data;
 }
 
@@ -266,17 +267,17 @@ function renderLogin() {
 
 // ---------- home ----------
 function card(g, hosting) {
-  const pending = g.pendingPrices ? ` · <span class="pill warn">${g.pendingPrices} price${g.pendingPrices > 1 ? "s" : ""} pending</span>` : "";
+  const pending = g.pendingPrices ? ` · <span class="pill warn">${g.pendingPrices} 件未定價</span>` : "";
   return `<a class="gb-card" href="#gb-${esc(g.id)}">
     <span class="t">${esc(g.name)}</span>
     <span class="amt">${g.myTotalCents == null ? money(g.grandTotalCents, g.currency) : money(g.myTotalCents, g.currency)}</span>
-    <span class="sub">${hosting ? "" : `Run by ${esc(g.organiser)} · `}${g.participantCount} ${g.participantCount === 1 ? "person" : "people"} · ${g.itemCount} item${g.itemCount === 1 ? "" : "s"}${pending}</span>
-    <span class="sub r">${g.myTotalCents == null ? "order total" : `you owe · of ${money(g.grandTotalCents, g.currency)}`}</span>
+    <span class="sub">${hosting ? "" : `團長：${esc(g.organiser)} · `}${g.participantCount} 人 · ${g.itemCount} 款貨品${pending}</span>
+    <span class="sub r">${g.myTotalCents == null ? "全單總數" : `你要付 · 全單 ${money(g.grandTotalCents, g.currency)}`}</span>
   </a>`;
 }
 
 async function renderHome() {
-  app.innerHTML = topBar() + `<p class="muted">Loading your group buys…</p>`;
+  app.innerHTML = topBar() + `<p class="muted">載入中…</p>`;
   wireTopBar();
   let data;
   try { data = await call("GET", "/me/groupbuys"); }
@@ -284,6 +285,7 @@ async function renderHome() {
 
   app.innerHTML = topBar() + `
     <form class="panel" id="new-gb">
+      <h2>開團</h2>
       <h2>開團</h2>
       <div class="row">
         <input type="text" id="new-name" placeholder="夾團團名 e.g. EN餐車" maxlength="80" required>
@@ -318,10 +320,10 @@ async function renderHome() {
 
 // ---------- group buy ----------
 async function openGroupBuy(id) {
-  app.innerHTML = topBar() + `<p class="muted">Loading…</p>`;
+  app.innerHTML = topBar() + `<p class="muted">載入中…</p>`;
   wireTopBar();
   try { current = await call("GET", "/groupbuys/" + id); }
-  catch (e) { app.innerHTML = topBar() + `<p class="notice">${esc(e.message)} <a href="#">Back to your group buys</a></p>`; wireTopBar(); return; }
+  catch (e) { app.innerHTML = topBar() + `<p class="notice">${esc(e.message)} <a href="#">返回我的團購</a></p>`; wireTopBar(); return; }
   renderGroupBuy();
   // Pick up other people's edits, but never while someone is typing.
   pollTimer = setInterval(async () => {
@@ -340,7 +342,7 @@ function renderGroupBuy() {
   const canQty = (u) => isOrg || (isMember && same(u, me));
   const qty = (u, itemId) => g.quantities[u.toLowerCase()]?.[itemId] || 0;
   const mine = s.people.find((p) => same(p.username, me));
-  const splitText = { subtotal: "in proportion to each person's item cost", equal: "equally between everyone who ordered something", items: "by how many items each person ordered" }[g.shippingSplit];
+  const splitText = { subtotal: "按每人的貨品金額比例", equal: "由有落單的人平均", items: "按每人購買的件數" }[g.shippingSplit];
 
   const header = `<div class="gb-head">
     <a href="#" class="small muted">← 所有夾團</a>
@@ -363,27 +365,27 @@ function renderGroupBuy() {
   </div>`;
 
   const notices = [];
-  if (!isMember) notices.push(`You're viewing this group buy. Ask ${esc(g.organiser)} to add <b>${esc(me)}</b> if you want to join.`);
-  if (s.pendingPrices) notices.push(`${s.pendingPrices} item${s.pendingPrices > 1 ? "s don't" : " doesn't"} have a price yet, so ${s.pendingPrices > 1 ? "they aren't" : "it isn't"} counted in the totals.${isOrg ? " Set the price in Items." : ` ${esc(g.organiser)} needs to set it.`}`);
-  if (s.unallocatedShippingCents > 0) notices.push(`Shipping can't be split yet because nobody has an item with a price.`);
+  if (!isMember) notices.push(`你正在瀏覽這個團購。如想參加，請叫 ${esc(g.organiser)} 將 <b>${esc(me)}</b> 加入。`);
+  if (s.pendingPrices) notices.push(`有 ${s.pendingPrices} 件貨品未定價，暫時不計入總數。${isOrg ? "請在「貨品」設定價錢。" : `需由團長 ${esc(g.organiser)} 設定。`}`);
+  if (s.unallocatedShippingCents > 0) notices.push(`暫時未能分攤運費，因為未有人買已定價的貨品。`);
 
   // Items panel
   const itemsPanel = `<section class="panel">
     <div class="panel-head"><h2>Item</h2><span class="muted small">單價</span></div>
     <div class="list">
       ${g.items.length ? g.items.map((it) => `<div class="li">
-        <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="Item name" ${isMember ? "" : "disabled"}>
+        <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="貨品名稱" ${isMember ? "" : "disabled"}>
         <div class="price-wrap"><span>${esc(cur)}</span>
-          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${isOrg ? "Set" : "TBC"}" aria-label="Price of ${esc(it.name)}" ${isOrg ? "" : "disabled"}></div>
-        ${isOrg ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="Remove ${esc(it.name)}" title="Remove item">×</button>` : "<span></span>"}
-      </div>`).join("") : `<div class="empty">No items yet. Add the first one below.</div>`}
+          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${isOrg ? "設定" : "待定"}" aria-label="${esc(it.name)} 的單價" ${isOrg ? "" : "disabled"}></div>
+        ${isOrg ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="移除 ${esc(it.name)}" title="移除貨品">×</button>` : "<span></span>"}
+      </div>`).join("") : `<div class="empty">未有貨品，請在下面加入。</div>`}
     </div>
     ${isMember ? `<form class="row" id="add-item">
-      <input type="text" id="new-item" placeholder="Item name, e.g. Base kit" maxlength="80" required style="flex:2 1 150px">
-      ${isOrg ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="Price each"></div>` : ""}
-      <button type="submit">Add item</button>
+      <input type="text" id="new-item" placeholder="貨品名稱，例如：Base kit" maxlength="80" required style="flex:2 1 150px">
+      ${isOrg ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="單價"></div>` : ""}
+      <button type="submit">加入貨品</button>
     </form>
-    ${isOrg ? "" : `<p class="hint">You can add items, but only ${esc(g.organiser)} can set prices.</p>`}` : ""}
+    ${isOrg ? "" : `<p class="hint">你可以加入貨品，但只有團長 ${esc(g.organiser)} 可以設定價錢。</p>`}` : ""}
   </section>`;
 
   // People panel
@@ -396,7 +398,7 @@ function renderGroupBuy() {
       </div>`).join("") : `<div class="empty">未冇人入團。要加人請輸入Discord名。</div>`}
     </div>
     ${isMember ? `<form class="row" id="add-person">
-      <input type="text" id="new-person" list="user-list" placeholder="Discord name" maxlength="40" required autocomplete="off">
+      <input type="text" id="new-person" list="user-list" placeholder="Discord 名稱" maxlength="40" required autocomplete="off">
       <datalist id="user-list"></datalist>
       <button type="submit">加人</button>
     </form>` : ""}
@@ -409,11 +411,11 @@ function renderGroupBuy() {
       <input type="number" id="ship" min="0" step="0.01" inputmode="decimal" value="${plain(g.shippingCents)}" placeholder="0.00" aria-label="Shipping for the whole order" ${isMember ? "" : "disabled"}></div>
     <label class="label" for="split">如何分運費</label>
     <select id="split" ${isMember ? "" : "disabled"}>
-      <option value="subtotal" ${g.shippingSplit === "subtotal" ? "selected" : ""}>By item cost (spend more, pay more)</option>
-      <option value="items" ${g.shippingSplit === "items" ? "selected" : ""}>By number of items</option>
-      <option value="equal" ${g.shippingSplit === "equal" ? "selected" : ""}>Equally per person</option>
+      <option value="subtotal" ${g.shippingSplit === "subtotal" ? "selected" : ""}>按貨品金額（買得多，付得多）</option>
+      <option value="items" ${g.shippingSplit === "items" ? "selected" : ""}>按件數</option>
+      <option value="equal" ${g.shippingSplit === "equal" ? "selected" : ""}>每人平分</option>
     </select>
-    <p class="hint">Shipping is split ${splitText}. Shares are rounded to the cent and always add up to the full amount.</p>
+    <p class="hint">運費${splitText}分攤。每人金額計至仙位，加起來一定等於全單運費。</p>
   </section>`;
 
   // Order grid
@@ -438,12 +440,12 @@ function renderGroupBuy() {
         <td class="sum-col">${money(s.itemsCents, cur)}</td><td>${money(s.shippingCents, cur)}</td><td class="grand">${money(s.grandTotalCents, cur)}</td></tr>
     </tfoot>
   </table></div>
-  <p class="hint">${isOrg ? "As organiser you can change anyone's quantities." : isMember ? "You can change the quantities in your own row. Other rows are locked." : ""}</p>`
-  : `<div class="empty">Add at least one item and one person to start filling in the order.</div>`;
+  <p class="hint">${isOrg ? "你是團長，可以更改所有人的數量。" : isMember ? "你只可以更改自己那一行的數量，其他人的已鎖定。" : ""}</p>`
+  : `<div class="empty">加入最少一件貨品和一位團員，就可以開始填寫訂單。</div>`;
 
   app.innerHTML = topBar() + header + totals
     + notices.map((n) => `<p class="notice">${n}</p>`).join("")
-    + `<section style="display:grid;gap:10px"><h2>Order</h2>${grid}</section>`
+    + `<section style="display:grid;gap:10px"><h2>訂單</h2>${grid}</section>`
     + `<div class="grid-3">${itemsPanel}${peoplePanel}${shipPanel}</div>`;
   wireTopBar();
   wireGroupBuy();
@@ -457,26 +459,26 @@ function wireGroupBuy() {
   };
 
   const nameEl = $("gb-name");
-  if (!nameEl.disabled) onCommit(nameEl, () => change("PATCH", "", { name: nameEl.value }, "Renamed"));
+  if (!nameEl.disabled) onCommit(nameEl, () => change("PATCH", "", { name: nameEl.value }, "已更改名稱"));
 
   $("copy-link").onclick = async () => {
     const link = location.origin + location.pathname + "#gb-" + current.id;
-    try { await navigator.clipboard.writeText(link); toast("Link copied. People still need to be added to join."); }
+    try { await navigator.clipboard.writeText(link); toast("已複製連結。對方仍需被加入團購才可參加。"); }
     catch { toast(link); }
   };
 
   const confirmIn = (slotId, text, action) => {
     const slot = $(slotId);
-    slot.innerHTML = `<span class="confirm">${text} <button class="small danger" id="yes">Yes</button><button class="ghost small" id="no">Cancel</button></span>`;
+    slot.innerHTML = `<span class="confirm">${text} <button class="small danger" id="yes">確定</button><button class="ghost small" id="no">取消</button></span>`;
     slot.querySelector("#no").onclick = renderGroupBuy;
     slot.querySelector("#yes").onclick = action;
   };
-  if ($("del-gb")) $("del-gb").onclick = () => confirmIn("del-slot", "Delete for everyone?", async () => {
-    try { await call("DELETE", "/groupbuys/" + current.id); toast("Group buy deleted"); location.hash = ""; }
+  if ($("del-gb")) $("del-gb").onclick = () => confirmIn("del-slot", "確定刪除？所有人都會看不到。", async () => {
+    try { await call("DELETE", "/groupbuys/" + current.id); toast("已刪除團購"); location.hash = ""; }
     catch (e) { toast(e.message, true); }
   });
-  if ($("leave-gb")) $("leave-gb").onclick = () => confirmIn("leave-slot", "Leave and clear your order?", async () => {
-    try { await call("DELETE", `/groupbuys/${current.id}/participants/${encodeURIComponent(me)}`); toast("You left the group buy"); location.hash = ""; }
+  if ($("leave-gb")) $("leave-gb").onclick = () => confirmIn("leave-slot", "確定退出？你的訂單會被清除。", async () => {
+    try { await call("DELETE", `/groupbuys/${current.id}/participants/${encodeURIComponent(me)}`); toast("你已退出團購"); location.hash = ""; }
     catch (e) { toast(e.message, true); }
   });
 
@@ -487,18 +489,18 @@ function wireGroupBuy() {
   document.querySelectorAll(".item-name:not(:disabled)").forEach((el) => onCommit(el, () =>
     change("PATCH", "/items/" + el.dataset.id, { name: el.value })));
   document.querySelectorAll(".item-price:not(:disabled)").forEach((el) => onCommit(el, () =>
-    change("PATCH", "/items/" + el.dataset.id, { price: el.value === "" ? null : el.value }, "Price saved")));
-  document.querySelectorAll(".del-item").forEach((el) => el.onclick = () => change("DELETE", "/items/" + el.dataset.id, null, "Item removed"));
+    change("PATCH", "/items/" + el.dataset.id, { price: el.value === "" ? null : el.value }, "已儲存價錢")));
+  document.querySelectorAll(".del-item").forEach((el) => el.onclick = () => change("DELETE", "/items/" + el.dataset.id, null, "已移除貨品"));
   document.querySelectorAll(".del-person").forEach((el) => el.onclick = () => {
     if (same(el.dataset.u, me) && current.role !== "organiser") return $("leave-gb").click();
-    change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `${el.dataset.u} removed`);
+    change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `已移除 ${el.dataset.u}`);
   });
 
   if ($("add-item")) $("add-item").onsubmit = (e) => {
     e.preventDefault();
     const body = { name: $("new-item").value };
     if ($("new-price") && $("new-price").value !== "") body.price = $("new-price").value;
-    change("POST", "/items", body, "Item added").then(() => $("new-item")?.focus());
+    change("POST", "/items", body, "已加入貨品").then(() => $("new-item")?.focus());
   };
   if ($("add-person")) {
     const input = $("new-person");
@@ -511,10 +513,10 @@ function wireGroupBuy() {
     $("add-person").onsubmit = (e) => {
       e.preventDefault();
       const u = input.value.trim();
-      change("POST", "/participants", { username: u }, `${u} added`).then(() => $("new-person")?.focus());
+      change("POST", "/participants", { username: u }, `已加入 ${u}`).then(() => $("new-person")?.focus());
     };
   }
-  if ($("ship") && !$("ship").disabled) onCommit($("ship"), () => change("PATCH", "", { shipping: $("ship").value || 0 }, "Shipping saved"));
+  if ($("ship") && !$("ship").disabled) onCommit($("ship"), () => change("PATCH", "", { shipping: $("ship").value || 0 }, "已儲存運費"));
   if ($("split") && !$("split").disabled) $("split").addEventListener("change", () => change("PATCH", "", { shippingSplit: $("split").value }));
 }
 
