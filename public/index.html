@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Group Buy Splitter</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
+<style>
+/* Layout: one centred column; the order grid is the hero of each group buy page. */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --sunk: #e8ecea;
+  --fg: #17201d;
+  --muted: #5d6b66;
+  --line: #d4dbd8;
+  --accent: #0f7a64;
+  --accent-ink: #ffffff;
+  --accent-soft: #d9efe9;
+  --warn: #9a5b00;
+  --warn-soft: #fbedd3;
+  --danger: #b3261e;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111715; --surface: #18201d; --sunk: #0d1311; --fg: #e5ecea; --muted: #93a39d;
+    --line: #2b3632; --accent: #3cc4a3; --accent-ink: #062019; --accent-soft: #163a31;
+    --warn: #f0b45a; --warn-soft: #3a2c14; --danger: #ff8a80; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111715; --surface: #18201d; --sunk: #0d1311; --fg: #e5ecea; --muted: #93a39d;
+  --line: #2b3632; --accent: #3cc4a3; --accent-ink: #062019; --accent-soft: #163a31;
+  --warn: #f0b45a; --warn-soft: #3a2c14; --danger: #ff8a80; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--fg); font: 15px/1.5 var(--body);
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+.wrap { max-width: 1080px; margin: 0 auto; padding-block: 20px 64px; display: grid; gap: 24px; }
+h1, h2, h3 { font-family: var(--display); margin: 0; text-wrap: balance; line-height: 1.15; }
+h1 { font-size: clamp(1.6rem, 4vw, 2.2rem); }
+h2 { font-size: 1.2rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+.num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.label { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+
+/* top bar */
+.bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.brand { font-family: var(--display); font-weight: 700; font-size: 1.1rem; color: var(--fg); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+.brand svg { width: 22px; height: 22px; }
+.who { display: flex; align-items: center; gap: 10px; font-size: 14px; }
+.who b { font-weight: 600; }
+
+/* controls */
+input, select, button { font: inherit; color: inherit; }
+input[type="text"], input[type="number"], select {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 8px 10px; min-width: 0; width: 100%;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, a:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px;
+}
+input:disabled { background: var(--sunk); color: var(--muted); }
+button { cursor: pointer; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); padding: 8px 14px; font-weight: 500; white-space: nowrap; }
+button:hover { border-color: var(--muted); }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.primary:hover { filter: brightness(1.07); }
+button.ghost { background: none; border-color: transparent; color: var(--muted); padding: 6px 8px; }
+button.ghost:hover { color: var(--fg); border-color: var(--line); }
+button.danger { color: var(--danger); }
+button.icon { padding: 4px 8px; line-height: 1; background: none; border-color: transparent; color: var(--muted); font-size: 18px; }
+button.icon:hover { color: var(--danger); border-color: var(--line); }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.row > input, .row > select { flex: 1 1 140px; }
+
+/* panels */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: grid; gap: 14px; min-width: 0; align-content: start; }
+.panel-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.grid-3 { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); align-items: start; }
+
+/* login */
+.login { max-width: 440px; margin: 10vh auto 0; display: grid; gap: 18px; }
+.login h1 { font-size: clamp(2rem, 7vw, 2.8rem); }
+.login form { display: grid; gap: 10px; }
+
+/* lists of group buys */
+.gb-list { display: grid; gap: 10px; }
+.gb-card { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 14px 16px; border-radius: 10px; border: 1px solid var(--line); text-decoration: none; color: inherit; background: var(--bg); }
+.gb-card:hover { border-color: var(--accent); }
+.gb-card .t { font-weight: 600; font-size: 16px; min-width: 0; overflow-wrap: anywhere; }
+.gb-card .amt { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 16px; }
+.gb-card .sub { font-size: 13px; color: var(--muted); }
+.gb-card .sub.r { text-align: right; }
+.empty { padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 14px; }
+
+/* pills */
+.pill { display: inline-block; font-size: 12px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: var(--sunk); color: var(--muted); vertical-align: middle; }
+.pill.org { background: var(--accent-soft); color: var(--accent); }
+.pill.warn { background: var(--warn-soft); color: var(--warn); }
+
+/* group buy header */
+.gb-head { display: grid; gap: 10px; }
+.gb-title { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.gb-title input { font-family: var(--display); font-size: clamp(1.4rem, 4vw, 2rem); font-weight: 700; border-color: transparent; background: none; padding: 2px 6px; margin-left: -7px; flex: 1 1 240px; }
+.gb-title input:hover:not(:disabled), .gb-title input:focus { border-color: var(--line); background: var(--surface); }
+.gb-title input:disabled { background: none; color: var(--fg); }
+
+/* totals strip */
+.totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.totals > div { background: var(--surface); padding: 14px 16px; display: grid; gap: 2px; }
+.totals .v { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.35rem; }
+.totals .me { background: var(--accent-soft); }
+.totals .me .v { color: var(--accent); }
+
+/* item / people lists */
+.list { display: grid; gap: 6px; }
+.li { display: grid; grid-template-columns: 1fr 110px auto; gap: 6px; align-items: center; }
+.li.person { grid-template-columns: 1fr auto; padding: 6px 4px 6px 10px; border-radius: 8px; background: var(--bg); }
+.li .nm { min-width: 0; overflow-wrap: anywhere; }
+.price-wrap { position: relative; }
+.price-wrap span { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+.price-wrap input { padding-left: 24px; text-align: right; font-family: var(--mono); }
+.price-wrap input.pending { border-color: var(--warn); }
+.price-wrap input.pending::placeholder { color: var(--warn); }
+
+/* order grid */
+.table-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+table { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 14px; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; }
+th { font-weight: 600; vertical-align: bottom; background: var(--surface); }
+th .ip { display: block; font-family: var(--mono); font-weight: 500; font-size: 12px; color: var(--muted); }
+th .ip.pending { color: var(--warn); font-family: var(--body); }
+th:first-child, td:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); z-index: 1; border-right: 1px solid var(--line); }
+td.qty { padding: 4px 6px; }
+td.qty input { width: 64px; text-align: right; font-family: var(--mono); padding: 5px 6px; }
+td.qty input:disabled { border-color: transparent; background: none; color: var(--fg); }
+td.qty input.zero:disabled { color: var(--muted); }
+tr.mine td { background: var(--accent-soft); }
+tr.mine td:first-child { background: var(--accent-soft); }
+.sum-col { border-left: 1px solid var(--line); }
+td.total, th.total { font-weight: 600; }
+tfoot td { background: var(--bg); font-weight: 600; border-bottom: none; }
+tfoot tr:first-child td { border-top: 2px solid var(--line); }
+tfoot td:first-child { background: var(--bg); }
+tfoot tr.cost td { font-family: var(--mono); font-weight: 500; }
+tfoot tr.cost td:first-child { font-family: var(--body); font-weight: 600; }
+tfoot td.grand { color: var(--accent); }
+
+.hint { font-size: 13px; color: var(--muted); }
+.notice { padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 14px; }
+
+/* toast */
+#toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 10px 16px; border-radius: 10px; font-size: 14px; max-width: calc(100% - 32px); z-index: 20; opacity: 0; pointer-events: none; transition: opacity .2s; }
+#toast.show { opacity: 1; }
+#toast.err { background: var(--danger); color: #fff; }
+.confirm { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; font-size: 14px; }
+
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"></div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const LOGO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h18l-1.5 11a2 2 0 0 1-2 1.7H6.5a2 2 0 0 1-2-1.7L3 7Z"/><path d="M8 7V5a4 4 0 0 1 8 0v2"/><path d="M12 11v5M9.5 13.5h5"/></svg>';
+const app = document.getElementById("app");
+let me = null;
+try { me = localStorage.getItem("gb-user"); } catch {}
+let current = null;     // the group buy being viewed
+let pollTimer = null;
+
+// ---------- utilities ----------
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
+const money = (cents, cur = "$") => cents == null ? "—" : cur + (cents / 100).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const plain = (cents) => cents == null ? "" : (cents / 100).toFixed(2);
+
+function toast(msg, isErr = false) {
+  const t = document.getElementById("toast");
+  t.textContent = msg; t.className = "show" + (isErr ? " err" : "");
+  clearTimeout(t._h); t._h = setTimeout(() => (t.className = ""), isErr ? 4200 : 1800);
+}
+
+async function call(method, path, body) {
+  const res = await fetch("/api" + path, {
+    method,
+    headers: { "Content-Type": "application/json", ...(me ? { "X-User": encodeURIComponent(me) } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "Request failed.");
+  return data;
+}
+
+// Run a change against the current group buy and re-render with the result.
+async function change(method, path, body, okMsg) {
+  try {
+    current = await call(method, `/groupbuys/${current.id}${path}`, body);
+    renderGroupBuy();
+    if (okMsg) toast(okMsg);
+  } catch (e) { toast(e.message, true); renderGroupBuy(); }
+}
+
+// ---------- routing ----------
+function route() {
+  clearInterval(pollTimer);
+  if (!me) return renderLogin();
+  const m = location.hash.match(/^#gb-(.+)$/);
+  if (m) return openGroupBuy(m[1]);
+  renderHome();
+}
+window.addEventListener("hashchange", route);
+
+function topBar() {
+  return `<div class="bar">
+    <a class="brand" href="#">${LOGO}Group Buy Splitter</a>
+    <div class="who"><span class="muted">Signed in as</span> <b>${esc(me)}</b>
+      <button class="ghost small" id="switch">Switch user</button></div>
+  </div>`;
+}
+function wireTopBar() {
+  document.getElementById("switch").onclick = () => {
+    me = null; try { localStorage.removeItem("gb-user"); } catch {}
+    route();
+  };
+}
+
+// ---------- login ----------
+function renderLogin() {
+  app.innerHTML = `<div class="login">
+    <a class="brand" href="#">${LOGO}Group Buy Splitter</a>
+    <h1>Who owes what, sorted.</h1>
+    <p class="muted">Enter your Discord name to see the group buys you run and the ones you've joined. No password needed: your name is your account, and each name can only exist once.</p>
+    <form id="login-form">
+      <label class="label" for="login-name">Discord name</label>
+      <input type="text" id="login-name" autocomplete="username" placeholder="e.g. keebcat" maxlength="40" required>
+      <button class="primary" type="submit">Continue</button>
+    </form>
+  </div>`;
+  const input = document.getElementById("login-name");
+  input.focus();
+  document.getElementById("login-form").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await call("POST", "/login", { username: input.value });
+      me = r.username;
+      try { localStorage.setItem("gb-user", me); } catch {}
+      route();
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+// ---------- home ----------
+function card(g, hosting) {
+  const pending = g.pendingPrices ? ` · <span class="pill warn">${g.pendingPrices} price${g.pendingPrices > 1 ? "s" : ""} pending</span>` : "";
+  return `<a class="gb-card" href="#gb-${esc(g.id)}">
+    <span class="t">${esc(g.name)}</span>
+    <span class="amt">${g.myTotalCents == null ? money(g.grandTotalCents, g.currency) : money(g.myTotalCents, g.currency)}</span>
+    <span class="sub">${hosting ? "" : `Run by ${esc(g.organiser)} · `}${g.participantCount} ${g.participantCount === 1 ? "person" : "people"} · ${g.itemCount} item${g.itemCount === 1 ? "" : "s"}${pending}</span>
+    <span class="sub r">${g.myTotalCents == null ? "order total" : `you owe · of ${money(g.grandTotalCents, g.currency)}`}</span>
+  </a>`;
+}
+
+async function renderHome() {
+  app.innerHTML = topBar() + `<p class="muted">Loading your group buys…</p>`;
+  wireTopBar();
+  let data;
+  try { data = await call("GET", "/me/groupbuys"); }
+  catch (e) { app.innerHTML = topBar() + `<p class="notice">${esc(e.message)}</p>`; wireTopBar(); return; }
+
+  app.innerHTML = topBar() + `
+    <form class="panel" id="new-gb">
+      <h2>Start a group buy</h2>
+      <div class="row">
+        <input type="text" id="new-name" placeholder="What are you buying? e.g. GMK Olivia keycaps" maxlength="80" required>
+        <input type="text" id="new-cur" value="$" maxlength="4" aria-label="Currency symbol" style="flex:0 0 64px;text-align:center">
+        <button class="primary" type="submit">Create</button>
+      </div>
+      <label class="row small muted" style="gap:6px"><input type="checkbox" id="new-me" checked> I'm buying in this group buy too</label>
+    </form>
+    <div class="grid-3">
+      <section class="panel">
+        <div class="panel-head"><h2>Group buys you run</h2><span class="muted small">${data.hosting.length}</span></div>
+        <div class="gb-list">${data.hosting.length ? data.hosting.map((g) => card(g, true)).join("") : `<div class="empty">You aren't running any group buys yet. Start one above.</div>`}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>Group buys you joined</h2><span class="muted small">${data.joined.length}</span></div>
+        <div class="gb-list">${data.joined.length ? data.joined.map((g) => card(g, false)).join("") : `<div class="empty">When an organiser adds <b>${esc(me)}</b> to a group buy, it shows up here.</div>`}</div>
+      </section>
+    </div>`;
+  wireTopBar();
+  document.getElementById("new-gb").onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const gb = await call("POST", "/groupbuys", {
+        name: document.getElementById("new-name").value,
+        currency: document.getElementById("new-cur").value || "$",
+        includeMe: document.getElementById("new-me").checked,
+      });
+      location.hash = "gb-" + gb.id;
+    } catch (err) { toast(err.message, true); }
+  };
+}
+
+// ---------- group buy ----------
+async function openGroupBuy(id) {
+  app.innerHTML = topBar() + `<p class="muted">Loading…</p>`;
+  wireTopBar();
+  try { current = await call("GET", "/groupbuys/" + id); }
+  catch (e) { app.innerHTML = topBar() + `<p class="notice">${esc(e.message)} <a href="#">Back to your group buys</a></p>`; wireTopBar(); return; }
+  renderGroupBuy();
+  // Pick up other people's edits, but never while someone is typing.
+  pollTimer = setInterval(async () => {
+    const a = document.activeElement;
+    if (a && (a.tagName === "INPUT" || a.tagName === "SELECT")) return;
+    try {
+      const fresh = await call("GET", "/groupbuys/" + id);
+      if (JSON.stringify(fresh) !== JSON.stringify(current)) { current = fresh; renderGroupBuy(); }
+    } catch {}
+  }, 5000);
+}
+
+function renderGroupBuy() {
+  const g = current, s = g.summary, cur = g.currency;
+  const isOrg = g.role === "organiser", isMember = g.role !== "viewer";
+  const canQty = (u) => isOrg || (isMember && same(u, me));
+  const qty = (u, itemId) => g.quantities[u.toLowerCase()]?.[itemId] || 0;
+  const mine = s.people.find((p) => same(p.username, me));
+  const splitText = { subtotal: "in proportion to each person's item cost", equal: "equally between everyone who ordered something", items: "by how many items each person ordered" }[g.shippingSplit];
+
+  const header = `<div class="gb-head">
+    <a href="#" class="small muted">← Your group buys</a>
+    <div class="gb-title">
+      <input type="text" id="gb-name" value="${esc(g.name)}" maxlength="80" aria-label="Group buy name" ${isOrg ? "" : "disabled"}>
+      <span class="pill ${isOrg ? "org" : ""}">${isOrg ? "You're the organiser" : isMember ? "You joined" : "Viewing"}</span>
+    </div>
+    <div class="row small muted">Run by <b style="color:var(--fg)">${esc(g.organiser)}</b>
+      <button class="ghost small" id="copy-link">Copy link</button>
+      ${isOrg ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
+      ${isMember && !isOrg ? `<span id="leave-slot"><button class="ghost small danger" id="leave-gb">Leave group buy</button></span>` : ""}
+    </div>
+  </div>`;
+
+  const totals = `<div class="totals">
+    <div><span class="label">Whole order</span><span class="v">${money(s.grandTotalCents, cur)}</span></div>
+    <div><span class="label">Items</span><span class="v">${money(s.itemsCents, cur)}</span></div>
+    <div><span class="label">Shipping</span><span class="v">${money(s.shippingCents, cur)}</span></div>
+    ${mine ? `<div class="me"><span class="label">You owe</span><span class="v">${money(mine.totalCents, cur)}</span></div>` : ""}
+  </div>`;
+
+  const notices = [];
+  if (!isMember) notices.push(`You're viewing this group buy. Ask ${esc(g.organiser)} to add <b>${esc(me)}</b> if you want to join.`);
+  if (s.pendingPrices) notices.push(`${s.pendingPrices} item${s.pendingPrices > 1 ? "s don't" : " doesn't"} have a price yet, so ${s.pendingPrices > 1 ? "they aren't" : "it isn't"} counted in the totals.${isOrg ? " Set the price in Items." : ` ${esc(g.organiser)} needs to set it.`}`);
+  if (s.unallocatedShippingCents > 0) notices.push(`Shipping can't be split yet because nobody has an item with a price.`);
+
+  // Items panel
+  const itemsPanel = `<section class="panel">
+    <div class="panel-head"><h2>Items</h2><span class="muted small">price each</span></div>
+    <div class="list">
+      ${g.items.length ? g.items.map((it) => `<div class="li">
+        <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="Item name" ${isMember ? "" : "disabled"}>
+        <div class="price-wrap"><span>${esc(cur)}</span>
+          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${isOrg ? "Set" : "TBC"}" aria-label="Price of ${esc(it.name)}" ${isOrg ? "" : "disabled"}></div>
+        ${isOrg ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="Remove ${esc(it.name)}" title="Remove item">×</button>` : "<span></span>"}
+      </div>`).join("") : `<div class="empty">No items yet. Add the first one below.</div>`}
+    </div>
+    ${isMember ? `<form class="row" id="add-item">
+      <input type="text" id="new-item" placeholder="Item name, e.g. Base kit" maxlength="80" required style="flex:2 1 150px">
+      ${isOrg ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="Price each"></div>` : ""}
+      <button type="submit">Add item</button>
+    </form>
+    ${isOrg ? "" : `<p class="hint">You can add items, but only ${esc(g.organiser)} can set prices.</p>`}` : ""}
+  </section>`;
+
+  // People panel
+  const peoplePanel = `<section class="panel">
+    <div class="panel-head"><h2>People</h2><span class="muted small">${g.participants.length} joined</span></div>
+    <div class="list">
+      ${g.participants.length ? g.participants.map((u) => `<div class="li person">
+        <span class="nm">${esc(u)}${same(u, g.organiser) ? ` <span class="pill org">organiser</span>` : ""}${same(u, me) ? ` <span class="muted small">(you)</span>` : ""}</span>
+        ${isOrg || same(u, me) ? `<button class="icon del-person" data-u="${esc(u)}" aria-label="Remove ${esc(u)}" title="Remove from group buy">×</button>` : "<span></span>"}
+      </div>`).join("") : `<div class="empty">Nobody has joined yet. Add people by their Discord name.</div>`}
+    </div>
+    ${isMember ? `<form class="row" id="add-person">
+      <input type="text" id="new-person" list="user-list" placeholder="Discord name" maxlength="40" required autocomplete="off">
+      <datalist id="user-list"></datalist>
+      <button type="submit">Add person</button>
+    </form>` : ""}
+  </section>`;
+
+  // Shipping panel
+  const shipPanel = `<section class="panel">
+    <div class="panel-head"><h2>Shipping</h2><span class="muted small">for the whole order</span></div>
+    <div class="price-wrap"><span>${esc(cur)}</span>
+      <input type="number" id="ship" min="0" step="0.01" inputmode="decimal" value="${plain(g.shippingCents)}" placeholder="0.00" aria-label="Shipping for the whole order" ${isMember ? "" : "disabled"}></div>
+    <label class="label" for="split">Split shipping</label>
+    <select id="split" ${isMember ? "" : "disabled"}>
+      <option value="subtotal" ${g.shippingSplit === "subtotal" ? "selected" : ""}>By item cost (spend more, pay more)</option>
+      <option value="items" ${g.shippingSplit === "items" ? "selected" : ""}>By number of items</option>
+      <option value="equal" ${g.shippingSplit === "equal" ? "selected" : ""}>Equally per person</option>
+    </select>
+    <p class="hint">Shipping is split ${splitText}. Shares are rounded to the cent and always add up to the full amount.</p>
+  </section>`;
+
+  // Order grid
+  const grid = g.items.length && g.participants.length ? `<div class="table-scroll"><table>
+    <thead><tr>
+      <th>Person</th>
+      ${g.items.map((it) => `<th>${esc(it.name)}<span class="ip ${it.priceCents == null ? "pending" : ""}">${it.priceCents == null ? "price pending" : money(it.priceCents, cur) + " each"}</span></th>`).join("")}
+      <th class="sum-col">Items</th><th>Shipping</th><th class="total">Total</th>
+    </tr></thead>
+    <tbody>
+      ${s.people.map((p) => `<tr class="${same(p.username, me) ? "mine" : ""}">
+        <td>${esc(p.username)}</td>
+        ${g.items.map((it) => { const q = qty(p.username, it.id); return `<td class="qty"><input type="number" min="0" step="1" inputmode="numeric" class="qty-in ${q ? "" : "zero"}" data-u="${esc(p.username)}" data-item="${esc(it.id)}" value="${q}" aria-label="${esc(p.username)}: ${esc(it.name)}" ${canQty(p.username) ? "" : "disabled"}></td>`; }).join("")}
+        <td class="num sum-col">${money(p.subtotalCents, cur)}</td>
+        <td class="num">${money(p.shippingCents, cur)}</td>
+        <td class="num total">${money(p.totalCents, cur)}</td>
+      </tr>`).join("")}
+    </tbody>
+    <tfoot>
+      <tr><td>Total ordered</td>${s.items.map((it) => `<td class="num">${it.totalQty}</td>`).join("")}<td class="sum-col"></td><td></td><td></td></tr>
+      <tr class="cost"><td>Item cost</td>${s.items.map((it) => `<td>${money(it.totalCents, cur)}</td>`).join("")}
+        <td class="sum-col">${money(s.itemsCents, cur)}</td><td>${money(s.shippingCents, cur)}</td><td class="grand">${money(s.grandTotalCents, cur)}</td></tr>
+    </tfoot>
+  </table></div>
+  <p class="hint">${isOrg ? "As organiser you can change anyone's quantities." : isMember ? "You can change the quantities in your own row. Other rows are locked." : ""}</p>`
+  : `<div class="empty">Add at least one item and one person to start filling in the order.</div>`;
+
+  app.innerHTML = topBar() + header + totals
+    + notices.map((n) => `<p class="notice">${n}</p>`).join("")
+    + `<section style="display:grid;gap:10px"><h2>Order</h2>${grid}</section>`
+    + `<div class="grid-3">${itemsPanel}${peoplePanel}${shipPanel}</div>`;
+  wireTopBar();
+  wireGroupBuy();
+}
+
+function wireGroupBuy() {
+  const $ = (id) => document.getElementById(id);
+  const onCommit = (el, fn) => {
+    el.addEventListener("change", fn);
+    el.addEventListener("keydown", (e) => { if (e.key === "Enter" && el.tagName === "INPUT") el.blur(); });
+  };
+
+  const nameEl = $("gb-name");
+  if (!nameEl.disabled) onCommit(nameEl, () => change("PATCH", "", { name: nameEl.value }, "Renamed"));
+
+  $("copy-link").onclick = async () => {
+    const link = location.origin + location.pathname + "#gb-" + current.id;
+    try { await navigator.clipboard.writeText(link); toast("Link copied. People still need to be added to join."); }
+    catch { toast(link); }
+  };
+
+  const confirmIn = (slotId, text, action) => {
+    const slot = $(slotId);
+    slot.innerHTML = `<span class="confirm">${text} <button class="small danger" id="yes">Yes</button><button class="ghost small" id="no">Cancel</button></span>`;
+    slot.querySelector("#no").onclick = renderGroupBuy;
+    slot.querySelector("#yes").onclick = action;
+  };
+  if ($("del-gb")) $("del-gb").onclick = () => confirmIn("del-slot", "Delete for everyone?", async () => {
+    try { await call("DELETE", "/groupbuys/" + current.id); toast("Group buy deleted"); location.hash = ""; }
+    catch (e) { toast(e.message, true); }
+  });
+  if ($("leave-gb")) $("leave-gb").onclick = () => confirmIn("leave-slot", "Leave and clear your order?", async () => {
+    try { await call("DELETE", `/groupbuys/${current.id}/participants/${encodeURIComponent(me)}`); toast("You left the group buy"); location.hash = ""; }
+    catch (e) { toast(e.message, true); }
+  });
+
+  document.querySelectorAll(".qty-in:not(:disabled)").forEach((el) => onCommit(el, () => {
+    const v = el.value === "" ? 0 : Number(el.value);
+    change("PUT", "/quantities", { username: el.dataset.u, itemId: el.dataset.item, qty: v });
+  }));
+  document.querySelectorAll(".item-name:not(:disabled)").forEach((el) => onCommit(el, () =>
+    change("PATCH", "/items/" + el.dataset.id, { name: el.value })));
+  document.querySelectorAll(".item-price:not(:disabled)").forEach((el) => onCommit(el, () =>
+    change("PATCH", "/items/" + el.dataset.id, { price: el.value === "" ? null : el.value }, "Price saved")));
+  document.querySelectorAll(".del-item").forEach((el) => el.onclick = () => change("DELETE", "/items/" + el.dataset.id, null, "Item removed"));
+  document.querySelectorAll(".del-person").forEach((el) => el.onclick = () => {
+    if (same(el.dataset.u, me) && current.role !== "organiser") return $("leave-gb").click();
+    change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `${el.dataset.u} removed`);
+  });
+
+  if ($("add-item")) $("add-item").onsubmit = (e) => {
+    e.preventDefault();
+    const body = { name: $("new-item").value };
+    if ($("new-price") && $("new-price").value !== "") body.price = $("new-price").value;
+    change("POST", "/items", body, "Item added").then(() => $("new-item")?.focus());
+  };
+  if ($("add-person")) {
+    const input = $("new-person");
+    input.addEventListener("input", async () => {
+      try {
+        const names = await call("GET", "/users?q=" + encodeURIComponent(input.value));
+        $("user-list").innerHTML = names.filter((n) => !current.participants.some((p) => same(p, n))).map((n) => `<option value="${esc(n)}">`).join("");
+      } catch {}
+    });
+    $("add-person").onsubmit = (e) => {
+      e.preventDefault();
+      const u = input.value.trim();
+      change("POST", "/participants", { username: u }, `${u} added`).then(() => $("new-person")?.focus());
+    };
+  }
+  if ($("ship") && !$("ship").disabled) onCommit($("ship"), () => change("PATCH", "", { shipping: $("ship").value || 0 }, "Shipping saved"));
+  if ($("split") && !$("split").disabled) $("split").addEventListener("change", () => change("PATCH", "", { shippingSplit: $("split").value }));
+}
+
+route();
+</script>
+</body>
+</html>
