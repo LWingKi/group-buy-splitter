@@ -9,6 +9,7 @@ const path = require("path");
 const crypto = require("crypto");
 
 const PORT = Number(process.env.PORT) || 3000;
+const HOST = process.env.HOST || undefined;  // e.g. 127.0.0.1 behind a reverse proxy
 const DATA_FILE = process.env.DATA_FILE || path.join(__dirname, "data.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
 const ACCESS_CODE = process.env.ACCESS_CODE || "";
@@ -18,6 +19,8 @@ if (!ACCESS_CODE) console.warn("ACCESS_CODE is not set: anyone with the link can
 const LIMITS = { users: 3000, groupbuys: 1000, openPerOrganiser: 20, items: 100, participants: 100 };
 
 // ---------- storage ----------
+fs.mkdirSync(path.dirname(DATA_FILE), { recursive: true });
+console.log(`Saving data to ${DATA_FILE}`);
 let db = { users: {}, groupbuys: {} };
 if (fs.existsSync(DATA_FILE)) {
   try { db = JSON.parse(fs.readFileSync(DATA_FILE, "utf8")); }
@@ -496,4 +499,4 @@ http.createServer(async (req, res) => {
     res.writeHead(e.status || 500, { ...BASE_HEADERS, "Content-Type": "application/json", "Cache-Control": "no-store" });
     res.end(JSON.stringify({ error: e.status ? e.message : "伺服器出錯，請稍後再試。", code: e.code }));
   }
-}).listen(PORT, () => console.log(`Group Buy Splitter running on http://localhost:${PORT}`));
+}).listen(PORT, HOST, () => console.log(`Group Buy Splitter running on http://${HOST || "localhost"}:${PORT}`));

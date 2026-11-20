@@ -68,3 +68,19 @@ npm start
    - `ACCESS_CODE` = 你自己諗嘅通行碼
 4. Settings → Networking → Generate Domain，就會有網址可以分享。
 5. 之後每次 `git push`，Railway 會自動更新網站，資料會保留。
+
+## 部署（Oracle Cloud 免費 server）
+
+1. 喺 Oracle Cloud 開一部 Ubuntu 免費 VM，喺 Security List 開 TCP port 80 同 443。
+2. 喺 https://www.duckdns.org 攞一個免費網址，指向部 VM 嘅 Public IP。
+3. SSH 入部 VM：
+
+   ```bash
+   git clone https://github.com/LWingKi/group-buy-splitter.git
+   cd group-buy-splitter
+   bash deploy/oracle-setup.sh
+   ```
+
+   跟住輸入網址同通行碼。腳本會安裝 Node.js 同 Caddy（自動 HTTPS），將網站設定成背景服務（重開機都會自動啟動）。
+4. 以後更新：喺 VM 入面 `cd group-buy-splitter && bash deploy/update.sh`。
+5. 資料喺 `/var/lib/groupbuy/data.json`；改通行碼：`sudo nano /etc/groupbuy.env` 然後 `sudo systemctl restart groupbuy`。
