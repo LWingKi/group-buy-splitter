@@ -330,7 +330,7 @@ function renderLogin() {
       <label class="label" for="login-name">Discord name (<@你個名>)</label>
       <input type="text" id="login-name" autocomplete="username" placeholder="e.g. waterfish" maxlength="40" required value="${esc(me || "")}">
       ${codeRequired ? `<label class="label" for="login-code">通行碼</label>
-      <input type="password" id="login-code" autocomplete="current-password" placeholder="問開團人攞" maxlength="100" required value="${esc(accessCode)}">` : ""}
+      <input type="password" id="login-code" autocomplete="current-password" placeholder="問Cap攞" maxlength="100" required value="${esc(accessCode)}">` : ""}
       <button class="primary" type="submit">繼續</button>
     </form>
   </div>`;
