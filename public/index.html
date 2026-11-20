@@ -128,8 +128,8 @@ button.icon:hover { color: var(--danger); border-color: var(--line); }
 
 /* item / people lists */
 .list { display: grid; gap: 6px; }
-.li { display: grid; grid-template-columns: 1fr 110px auto; gap: 6px; align-items: center; }
-.li.person { grid-template-columns: 1fr auto; padding: 6px 4px 6px 10px; border-radius: 8px; background: var(--bg); }
+.li { display: grid; grid-template-columns: 1fr 110px 34px; gap: 6px; align-items: center; }
+.li.person { grid-template-columns: 1fr 34px; padding: 6px 4px 6px 10px; border-radius: 8px; background: var(--bg); }
 .li .nm { min-width: 0; overflow-wrap: anywhere; }
 .price-wrap { position: relative; }
 .price-wrap span { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
@@ -286,11 +286,10 @@ async function renderHome() {
   app.innerHTML = topBar() + `
     <form class="panel" id="new-gb">
       <h2>開團</h2>
-      <h2>開團</h2>
       <div class="row">
         <input type="text" id="new-name" placeholder="夾團團名 e.g. EN餐車" maxlength="80" required>
         <input type="text" id="new-cur" value="$" maxlength="4" aria-label="Currency symbol" style="flex:0 0 64px;text-align:center">
-        <button class="primary" type="submit">Create</button>S
+        <button class="primary" type="submit">Create</button>
       </div>
       <label class="row small muted" style="gap:1px"><input type="checkbox" id="new-me" checked> 我有份買</label>
     </form>
@@ -302,6 +301,10 @@ async function renderHome() {
       <section class="panel">
         <div class="panel-head"><h2>你join嘅團</h2><span class="muted small">${data.joined.length}</span></div>
         <div class="gb-list">${data.joined.length ? data.joined.map((g) => card(g, false)).join("") : `<div class="empty">你尚未加入任何團</div>`}</div>
+      </section>
+      <section class="panel">
+        <div class="panel-head"><h2>其他夾團</h2><span class="muted small">${data.others.length}</span></div>
+        <div class="gb-list">${data.others.length ? data.others.map((g) => card(g, false)).join("") : `<div class="empty">暫時冇其他團</div>`}</div>
       </section>
     </div>`;
   wireTopBar();
@@ -339,6 +342,7 @@ async function openGroupBuy(id) {
 function renderGroupBuy() {
   const g = current, s = g.summary, cur = g.currency;
   const isOrg = g.role === "organiser", isMember = g.role !== "viewer";
+  const canPrice = (it) => isOrg || (isMember && same(it.addedBy || "", me));
   const canQty = (u) => isOrg || (isMember && same(u, me));
   const qty = (u, itemId) => g.quantities[u.toLowerCase()]?.[itemId] || 0;
   const mine = s.people.find((p) => same(p.username, me));
@@ -353,6 +357,7 @@ function renderGroupBuy() {
     <div class="row small muted">開團人 <b style="color:var(--fg)">${esc(g.organiser)}</b>
       <button class="ghost small" id="copy-link">Copy link</button>
       ${isOrg ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
+      ${!isMember ? `<button class="primary small" id="join-gb">加入呢個團</button>` : ""}
       ${isMember && !isOrg ? `<span id="leave-slot"><button class="ghost small danger" id="leave-gb">Leave group buy</button></span>` : ""}
     </div>
   </div>`;
@@ -365,8 +370,8 @@ function renderGroupBuy() {
   </div>`;
 
   const notices = [];
-  if (!isMember) notices.push(`你正在瀏覽這個團購。如想參加，請叫 ${esc(g.organiser)} 將 <b>${esc(me)}</b> 加入。`);
-  if (s.pendingPrices) notices.push(`有 ${s.pendingPrices} 件貨品未定價，暫時不計入總數。${isOrg ? "請在「貨品」設定價錢。" : `需由團長 ${esc(g.organiser)} 設定。`}`);
+  if (!isMember) notices.push(`你未加入呢個團。想一齊夾，請按「加入呢個團」。`);
+  if (s.pendingPrices) notices.push(`有 ${s.pendingPrices} 件貨品未定價，暫時不計入總數。團長或加嗰件貨品嘅人可以喺「Item」設定價錢。`);
   if (s.unallocatedShippingCents > 0) notices.push(`暫時未能分攤運費，因為未有人買已定價的貨品。`);
 
   // Items panel
@@ -376,16 +381,16 @@ function renderGroupBuy() {
       ${g.items.length ? g.items.map((it) => `<div class="li">
         <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="貨品名稱" ${isMember ? "" : "disabled"}>
         <div class="price-wrap"><span>${esc(cur)}</span>
-          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${isOrg ? "設定" : "待定"}" aria-label="${esc(it.name)} 的單價" ${isOrg ? "" : "disabled"}></div>
-        ${isOrg ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="移除 ${esc(it.name)}" title="移除貨品">×</button>` : "<span></span>"}
+          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${canPrice(it) ? "設定" : "待定"}" aria-label="${esc(it.name)} 的單價" ${canPrice(it) ? "" : "disabled"}></div>
+        ${canPrice(it) ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="移除 ${esc(it.name)}" title="移除貨品">×</button>` : "<span></span>"}
       </div>`).join("") : `<div class="empty">未有貨品，請在下面加入。</div>`}
     </div>
     ${isMember ? `<form class="row" id="add-item">
       <input type="text" id="new-item" placeholder="貨品名稱，例如：Base kit" maxlength="80" required style="flex:2 1 150px">
-      ${isOrg ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="單價"></div>` : ""}
+      ${isMember ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="單價"></div>` : ""}
       <button type="submit">加入貨品</button>
     </form>
-    ${isOrg ? "" : `<p class="hint">你可以加入貨品，但只有團長 ${esc(g.organiser)} 可以設定價錢。</p>`}` : ""}
+    ${isOrg ? "" : `<p class="hint">你可以加貨品同埋設定價錢。已經有嘅價錢，只有團長或者加嗰件貨品嘅人可以改。</p>`}` : ""}
   </section>`;
 
   // People panel
@@ -496,6 +501,7 @@ function wireGroupBuy() {
     change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `已移除 ${el.dataset.u}`);
   });
 
+  if ($("join-gb")) $("join-gb").onclick = () => change("POST", "/participants", { username: me }, "你已加入呢個團");
   if ($("add-item")) $("add-item").onsubmit = (e) => {
     e.preventDefault();
     const body = { name: $("new-item").value };

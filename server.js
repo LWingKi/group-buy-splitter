@@ -169,6 +169,7 @@ async function api(req, res, url) {
     return {
       hosting: all.filter((v) => v.role === "organiser").sort(byNew).map(brief),
       joined: all.filter((v) => v.role === "participant").sort(byNew).map(brief),
+      others: all.filter((v) => v.role === "viewer").sort(byNew).map(brief),
     };
   }
 
@@ -198,7 +199,18 @@ async function api(req, res, url) {
     return view(gb, me);
   }
 
+  // Anyone can join a group buy themselves.
+  if (parts[2] === "participants" && method === "POST" && key(body.username || "") === key(me)) {
+    const { gb } = loadGb(id, me, { member: false });
+    if (gb.participants.some((p) => key(p) === key(me))) throw httpError(409, "你已經喺呢個團入面。");
+    gb.participants.push(me); save(); return view(gb, me);
+  }
+
   const { gb, role } = loadGb(id, me);
+  // The organiser, or whoever added the item, may change its price or remove it.
+  const requireItemOwner = (item, what) => {
+    if (role !== "organiser" && key(item.addedBy || "") !== key(me)) throw httpError(403, `只有團長或加呢件貨品嘅人可以${what}。`);
+  };
 
   // Update group buy settings
   if (parts.length === 2 && method === "PATCH") {
@@ -236,7 +248,6 @@ async function api(req, res, url) {
       if (!name) throw httpError(400, "請輸入貨品名稱。");
       let priceCents = null;
       if (body.price !== undefined && body.price !== "" && body.price !== null) {
-        requireOrganiser(role, "設定貨品價錢");
         priceCents = toCents(body.price, "價錢");
       }
       gb.items.push({ id: newId(), name: name.slice(0, 80), priceCents, addedBy: me });
@@ -245,7 +256,7 @@ async function api(req, res, url) {
     const item = gb.items.find((it) => it.id === itemId);
     if (!item) throw httpError(404, "這件貨品已被移除。");
     if (method === "PATCH") {
-      if ("price" in body) { requireOrganiser(role, "更改貨品價錢"); item.priceCents = toCents(body.price, "價錢"); }
+      if ("price" in body) { requireItemOwner(item, "更改價錢"); item.priceCents = toCents(body.price, "價錢"); }
       if ("name" in body) {
         const n = String(body.name || "").trim();
         if (!n) throw httpError(400, "請輸入貨品名稱。");
@@ -254,7 +265,7 @@ async function api(req, res, url) {
       save(); return view(gb, me);
     }
     if (method === "DELETE") {
-      requireOrganiser(role, "移除貨品");
+      requireItemOwner(item, "移除佢");
       gb.items = gb.items.filter((it) => it.id !== itemId);
       for (const q of Object.values(gb.quantities)) delete q[itemId];
       save(); return view(gb, me);
