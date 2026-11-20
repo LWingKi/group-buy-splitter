@@ -107,6 +107,10 @@ button.icon:hover { color: var(--danger); border-color: var(--line); }
 .gb-card .amt { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 16px; }
 .gb-card .sub { font-size: 13px; color: var(--muted); }
 .gb-card .sub.r { text-align: right; }
+.arch-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.arch-row .gb-card { flex: 1 1 320px; min-width: 0; }
+.arch-del { flex: 0 1 auto; }
+.archive .gb-card { background: var(--sunk); }
 .empty { padding: 18px; border: 1px dashed var(--line); border-radius: 10px; color: var(--muted); font-size: 14px; }
 
 /* pills */
@@ -244,6 +248,7 @@ const currencyOptions = (selected) => {
   if (!CURRENCIES[selected]) opts.unshift(`<option value="" selected disabled>${esc(selected || "$")}（舊設定）</option>`);
   return opts.join("");
 };
+const fmtDate = (t) => new Date(t).toLocaleDateString("zh-HK", { year: "numeric", month: "long", day: "numeric" });
 const plain = (cents, code) => cents == null ? "" : NO_CENTS.includes(code) ? String(Math.round(cents / 100)) : (cents / 100).toFixed(2);
 
 function toast(msg, isErr = false) {
@@ -329,7 +334,7 @@ function card(g, hosting) {
   return `<a class="gb-card" href="#gb-${esc(g.id)}">
     <span class="t">${esc(g.name)}</span>
     <span class="amt">${g.myTotalCents == null ? money(g.grandTotalCents, g.currency) : money(g.myTotalCents, g.currency)}</span>
-    <span class="sub">${g.closed ? `<span class="pill done">已完結</span> ` : ""}${hosting ? "" : `團長：${esc(g.organiser)} · `}${g.participantCount} 人 · ${g.itemCount} 款貨品${pending}</span>
+    <span class="sub">${g.closed ? `<span class="pill done">已完結</span> ` : ""}${hosting ? "" : `團長：${esc(g.organiser)} · `}${g.participantCount} 人 · ${g.itemCount} 款貨品${pending}${g.closed && g.deleteAt ? ` · ${fmtDate(g.deleteAt)} 自動刪除` : ""}</span>
     <span class="sub r">${g.myTotalCents == null ? "全單總數" : `你要付 · 全單 ${money(g.grandTotalCents, g.currency)}`}</span>
   </a>`;
 }
@@ -364,8 +369,29 @@ async function renderHome() {
         <div class="panel-head"><h2>其他夾團</h2><span class="muted small">${data.others.length}</span></div>
         <div class="gb-list">${data.others.length ? data.others.map((g) => card(g, false)).join("") : `<div class="empty">暫時冇其他團</div>`}</div>
       </section>
-    </div>`;
+    </div>
+    ${data.archived.length ? `<section class="panel archive">
+      <div class="panel-head"><h2>封存</h2><span class="muted small">完結咗嘅團會保留一個月，之後自動刪除</span></div>
+      <div class="gb-list">${data.archived.map((g) => {
+        const mine = same(g.organiser, me);
+        return `<div class="arch-row">${card(g, mine)}${mine
+          ? `<span class="arch-del" id="arch-${esc(g.id)}"><button class="ghost small danger arch-del-btn" data-id="${esc(g.id)}" data-name="${esc(g.name)}">刪除</button></span>`
+          : ""}</div>`;
+      }).join("")}</div>
+    </section>` : ""}`;
   wireTopBar();
+  // Deleting from the archive: warn first, since it can't be undone.
+  document.querySelectorAll(".arch-del-btn").forEach((btn) => btn.onclick = () => {
+    const slot = document.getElementById("arch-" + btn.dataset.id);
+    slot.innerHTML = `<span class="confirm warn">⚠ 永久刪除「${esc(btn.dataset.name)}」？所有人都會睇唔返，無法復原。
+      <button class="small danger" data-yes>確定刪除</button><button class="ghost small" data-no>取消</button></span>`;
+    slot.querySelector("[data-no]").onclick = renderHome;
+    slot.querySelector("[data-yes]").onclick = async () => {
+      try { await call("DELETE", "/groupbuys/" + btn.dataset.id); toast("已刪除"); }
+      catch (e) { toast(e.message, true); }
+      renderHome();
+    };
+  });
   document.getElementById("new-gb").onsubmit = async (e) => {
     e.preventDefault();
     try {
@@ -448,7 +474,7 @@ function renderGroupBuy() {
 
   const notices = [];
   const closedBanner = closed
-    ? `<p class="notice done">呢個團已經完結${g.closedAt ? `（${new Date(g.closedAt).toLocaleDateString("zh-HK")}）` : ""}，所有資料已鎖定。${orgRole ? "如要修改，請按「重新開放」。" : ""}</p>` : "";
+    ? `<p class="notice done">呢個團已經完結${g.closedAt ? `（${new Date(g.closedAt).toLocaleDateString("zh-HK")}）` : ""}，所有資料已鎖定${g.deleteAt ? `，並會喺 ${fmtDate(g.deleteAt)} 自動刪除` : ""}。${orgRole ? "如要修改，請按「重新開放」。" : ""}</p>` : "";
   if (!memberRole && !closed) notices.push(`你未加入呢個團。想一齊夾，請按「加入呢個團」。`);
   if (s.pendingPrices) notices.push(`有 ${s.pendingPrices} 件貨品未定價，暫時不計入總數。團長或加嗰件貨品嘅人可以喺「Item」設定價錢。`);
   if (s.unallocatedShippingCents > 0) notices.push(`暫時未能分攤運費，因為未有人買已定價的貨品。`);
@@ -562,7 +588,7 @@ function wireGroupBuy() {
     slot.querySelector("#no").onclick = renderGroupBuy;
     slot.querySelector("#yes").onclick = action;
   };
-  if ($("del-gb")) $("del-gb").onclick = () => confirmIn("del-slot", "確定刪除？所有人都會看不到。", async () => {
+  if ($("del-gb")) $("del-gb").onclick = () => confirmIn("del-slot", "⚠ 確定永久刪除？所有人都會睇唔返，無法復原。", async () => {
     try { await call("DELETE", "/groupbuys/" + current.id); toast("已刪除團購"); location.hash = ""; }
     catch (e) { toast(e.message, true); }
   });

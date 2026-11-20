@@ -120,6 +120,21 @@ function summarize(gb) {
   };
 }
 
+// Closed group buys stay in the archive for one calendar month, then are deleted.
+function archiveUntil(closedAt) {
+  const d = new Date(closedAt);
+  d.setMonth(d.getMonth() + 1);
+  return d.getTime();
+}
+function purgeExpired() {
+  const now = Date.now();
+  let n = 0;
+  for (const [id, gb] of Object.entries(db.groupbuys)) {
+    if (gb.closed && gb.closedAt && archiveUntil(gb.closedAt) <= now) { delete db.groupbuys[id]; n++; }
+  }
+  if (n) { save(); console.log(`Deleted ${n} archived group buy(s) older than one month.`); }
+}
+
 // 已交收 / 已付款: the organiser sees everyone's, a member sees only their own.
 function visibleStatus(gb, me, isOrganiser, isMember) {
   const all = gb.status || {};
@@ -134,6 +149,7 @@ function view(gb, me) {
   return {
     ...gb,
     status: visibleStatus(gb, me, isOrganiser, isMember),
+    deleteAt: gb.closed && gb.closedAt ? archiveUntil(gb.closedAt) : null,
     role: isOrganiser ? "organiser" : isMember ? "participant" : "viewer",
     summary: summarize(gb),
   };
@@ -154,6 +170,7 @@ function requireOrganiser(role, what) {
 // ---------- API ----------
 async function api(req, res, url) {
   const method = req.method;
+  purgeExpired();
   const parts = url.pathname.split("/").filter(Boolean).slice(1); // drop "api"
   const body = ["POST", "PUT", "PATCH"].includes(method) ? await readJson(req) : {};
 
@@ -177,7 +194,7 @@ async function api(req, res, url) {
     const brief = (v) => {
       const mine = v.summary.people.find((p) => key(p.username) === key(me));
       return {
-        id: v.id, name: v.name, organiser: v.organiser, createdAt: v.createdAt, currency: v.currency, closed: !!v.closed,
+        id: v.id, name: v.name, organiser: v.organiser, createdAt: v.createdAt, currency: v.currency, closed: !!v.closed, deleteAt: v.deleteAt,
         participantCount: v.participants.length, itemCount: v.items.length,
         grandTotalCents: v.summary.grandTotalCents, myTotalCents: mine ? mine.totalCents : null,
         pendingPrices: v.summary.pendingPrices,
@@ -185,9 +202,11 @@ async function api(req, res, url) {
     };
     const byNew = (a, b) => (!!a.closed - !!b.closed) || b.createdAt - a.createdAt;  // open ones first
     return {
-      hosting: all.filter((v) => v.role === "organiser").sort(byNew).map(brief),
-      joined: all.filter((v) => v.role === "participant").sort(byNew).map(brief),
-      others: all.filter((v) => v.role === "viewer").sort(byNew).map(brief),
+      hosting: all.filter((v) => !v.closed && v.role === "organiser").sort(byNew).map(brief),
+      joined: all.filter((v) => !v.closed && v.role === "participant").sort(byNew).map(brief),
+      others: all.filter((v) => !v.closed && v.role === "viewer").sort(byNew).map(brief),
+      // Closed group buys you ran or joined, soonest to be deleted first.
+      archived: all.filter((v) => v.closed && v.role !== "viewer").sort((a, b) => (a.deleteAt || 0) - (b.deleteAt || 0)).map(brief),
     };
   }
 
@@ -370,6 +389,9 @@ function serveStatic(res, pathname) {
   res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "application/octet-stream" });
   fs.createReadStream(file).pipe(res);
 }
+
+purgeExpired();
+setInterval(purgeExpired, 60 * 60 * 1000);  // hourly, as well as on every request
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, "http://localhost");
