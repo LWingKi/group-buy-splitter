@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Group Buy Splitter</title>
+<title>夾團台</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@500&display=swap">
@@ -227,7 +227,7 @@ window.addEventListener("hashchange", route);
 
 function topBar() {
   return `<div class="bar">
-    <a class="brand" href="#">${LOGO}Group Buy Splitter</a>
+    <a class="brand" href="#">${LOGO}夾團台</a>
     <div class="who"><span class="muted">Signed in as</span> <b>${esc(me)}</b>
       <button class="ghost small" id="switch">Switch user</button></div>
   </div>`;
@@ -242,13 +242,13 @@ function wireTopBar() {
 // ---------- login ----------
 function renderLogin() {
   app.innerHTML = `<div class="login">
-    <a class="brand" href="#">${LOGO}Group Buy Splitter</a>
-    <h1>Who owes what, sorted.</h1>
-    <p class="muted">Enter your Discord name to see the group buys you run and the ones you've joined. No password needed: your name is your account, and each name can only exist once.</p>
+    <a class="brand" href="#">${LOGO}夾團台</a>
+    <h1>財散人安樂</h1>
+    <p class="muted">請輸入你嘅Discord名。呢個將會係你的Account，不需要密碼。</p>
     <form id="login-form">
-      <label class="label" for="login-name">Discord name</label>
-      <input type="text" id="login-name" autocomplete="username" placeholder="e.g. keebcat" maxlength="40" required>
-      <button class="primary" type="submit">Continue</button>
+      <label class="label" for="login-name">Discord name (<@你個名>)</label>
+      <input type="text" id="login-name" autocomplete="username" placeholder="e.g. waterfish" maxlength="40" required>
+      <button class="primary" type="submit">繼續</button>
     </form>
   </div>`;
   const input = document.getElementById("login-name");
@@ -284,22 +284,22 @@ async function renderHome() {
 
   app.innerHTML = topBar() + `
     <form class="panel" id="new-gb">
-      <h2>Start a group buy</h2>
+      <h2>開團</h2>
       <div class="row">
-        <input type="text" id="new-name" placeholder="What are you buying? e.g. GMK Olivia keycaps" maxlength="80" required>
+        <input type="text" id="new-name" placeholder="夾團團名 e.g. EN餐車" maxlength="80" required>
         <input type="text" id="new-cur" value="$" maxlength="4" aria-label="Currency symbol" style="flex:0 0 64px;text-align:center">
-        <button class="primary" type="submit">Create</button>
+        <button class="primary" type="submit">Create</button>S
       </div>
-      <label class="row small muted" style="gap:6px"><input type="checkbox" id="new-me" checked> I'm buying in this group buy too</label>
+      <label class="row small muted" style="gap:1px"><input type="checkbox" id="new-me" checked> 我有份買</label>
     </form>
     <div class="grid-3">
       <section class="panel">
-        <div class="panel-head"><h2>Group buys you run</h2><span class="muted small">${data.hosting.length}</span></div>
-        <div class="gb-list">${data.hosting.length ? data.hosting.map((g) => card(g, true)).join("") : `<div class="empty">You aren't running any group buys yet. Start one above.</div>`}</div>
+        <div class="panel-head"><h2>你開嘅團</h2><span class="muted small">${data.hosting.length}</span></div>
+        <div class="gb-list">${data.hosting.length ? data.hosting.map((g) => card(g, true)).join("") : `<div class="empty">你未開任何團，如果你想開團，請按＂開團＂</div>`}</div>
       </section>
       <section class="panel">
-        <div class="panel-head"><h2>Group buys you joined</h2><span class="muted small">${data.joined.length}</span></div>
-        <div class="gb-list">${data.joined.length ? data.joined.map((g) => card(g, false)).join("") : `<div class="empty">When an organiser adds <b>${esc(me)}</b> to a group buy, it shows up here.</div>`}</div>
+        <div class="panel-head"><h2>你join嘅團</h2><span class="muted small">${data.joined.length}</span></div>
+        <div class="gb-list">${data.joined.length ? data.joined.map((g) => card(g, false)).join("") : `<div class="empty">你尚未加入任何團</div>`}</div>
       </section>
     </div>`;
   wireTopBar();
@@ -343,12 +343,12 @@ function renderGroupBuy() {
   const splitText = { subtotal: "in proportion to each person's item cost", equal: "equally between everyone who ordered something", items: "by how many items each person ordered" }[g.shippingSplit];
 
   const header = `<div class="gb-head">
-    <a href="#" class="small muted">← Your group buys</a>
+    <a href="#" class="small muted">← 所有夾團</a>
     <div class="gb-title">
       <input type="text" id="gb-name" value="${esc(g.name)}" maxlength="80" aria-label="Group buy name" ${isOrg ? "" : "disabled"}>
-      <span class="pill ${isOrg ? "org" : ""}">${isOrg ? "You're the organiser" : isMember ? "You joined" : "Viewing"}</span>
+      <span class="pill ${isOrg ? "org" : ""}">${isOrg ? "你係開團人" : isMember ? "You joined" : "Viewing"}</span>
     </div>
-    <div class="row small muted">Run by <b style="color:var(--fg)">${esc(g.organiser)}</b>
+    <div class="row small muted">開團人 <b style="color:var(--fg)">${esc(g.organiser)}</b>
       <button class="ghost small" id="copy-link">Copy link</button>
       ${isOrg ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
       ${isMember && !isOrg ? `<span id="leave-slot"><button class="ghost small danger" id="leave-gb">Leave group buy</button></span>` : ""}
@@ -356,10 +356,10 @@ function renderGroupBuy() {
   </div>`;
 
   const totals = `<div class="totals">
-    <div><span class="label">Whole order</span><span class="v">${money(s.grandTotalCents, cur)}</span></div>
-    <div><span class="label">Items</span><span class="v">${money(s.itemsCents, cur)}</span></div>
-    <div><span class="label">Shipping</span><span class="v">${money(s.shippingCents, cur)}</span></div>
-    ${mine ? `<div class="me"><span class="label">You owe</span><span class="v">${money(mine.totalCents, cur)}</span></div>` : ""}
+    <div><span class="label">全單總值</span><span class="v">${money(s.grandTotalCents, cur)}</span></div>
+    <div><span class="label">貨品總值</span><span class="v">${money(s.itemsCents, cur)}</span></div>
+    <div><span class="label">運費</span><span class="v">${money(s.shippingCents, cur)}</span></div>
+    ${mine ? `<div class="me"><span class="label">你要比</span><span class="v">${money(mine.totalCents, cur)}</span></div>` : ""}
   </div>`;
 
   const notices = [];
@@ -369,7 +369,7 @@ function renderGroupBuy() {
 
   // Items panel
   const itemsPanel = `<section class="panel">
-    <div class="panel-head"><h2>Items</h2><span class="muted small">price each</span></div>
+    <div class="panel-head"><h2>Item</h2><span class="muted small">單價</span></div>
     <div class="list">
       ${g.items.length ? g.items.map((it) => `<div class="li">
         <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="Item name" ${isMember ? "" : "disabled"}>
@@ -388,26 +388,26 @@ function renderGroupBuy() {
 
   // People panel
   const peoplePanel = `<section class="panel">
-    <div class="panel-head"><h2>People</h2><span class="muted small">${g.participants.length} joined</span></div>
+    <div class="panel-head"><h2>夾團成員</h2><span class="muted small">${g.participants.length} joined</span></div>
     <div class="list">
       ${g.participants.length ? g.participants.map((u) => `<div class="li person">
         <span class="nm">${esc(u)}${same(u, g.organiser) ? ` <span class="pill org">organiser</span>` : ""}${same(u, me) ? ` <span class="muted small">(you)</span>` : ""}</span>
         ${isOrg || same(u, me) ? `<button class="icon del-person" data-u="${esc(u)}" aria-label="Remove ${esc(u)}" title="Remove from group buy">×</button>` : "<span></span>"}
-      </div>`).join("") : `<div class="empty">Nobody has joined yet. Add people by their Discord name.</div>`}
+      </div>`).join("") : `<div class="empty">未冇人入團。要加人請輸入Discord名。</div>`}
     </div>
     ${isMember ? `<form class="row" id="add-person">
       <input type="text" id="new-person" list="user-list" placeholder="Discord name" maxlength="40" required autocomplete="off">
       <datalist id="user-list"></datalist>
-      <button type="submit">Add person</button>
+      <button type="submit">加人</button>
     </form>` : ""}
   </section>`;
 
   // Shipping panel
   const shipPanel = `<section class="panel">
-    <div class="panel-head"><h2>Shipping</h2><span class="muted small">for the whole order</span></div>
+    <div class="panel-head"><h2>運費</h2><span class="muted small">for the whole order</span></div>
     <div class="price-wrap"><span>${esc(cur)}</span>
       <input type="number" id="ship" min="0" step="0.01" inputmode="decimal" value="${plain(g.shippingCents)}" placeholder="0.00" aria-label="Shipping for the whole order" ${isMember ? "" : "disabled"}></div>
-    <label class="label" for="split">Split shipping</label>
+    <label class="label" for="split">如何分運費</label>
     <select id="split" ${isMember ? "" : "disabled"}>
       <option value="subtotal" ${g.shippingSplit === "subtotal" ? "selected" : ""}>By item cost (spend more, pay more)</option>
       <option value="items" ${g.shippingSplit === "items" ? "selected" : ""}>By number of items</option>
@@ -419,9 +419,9 @@ function renderGroupBuy() {
   // Order grid
   const grid = g.items.length && g.participants.length ? `<div class="table-scroll"><table>
     <thead><tr>
-      <th>Person</th>
+      <th>夾團人名</th>
       ${g.items.map((it) => `<th>${esc(it.name)}<span class="ip ${it.priceCents == null ? "pending" : ""}">${it.priceCents == null ? "price pending" : money(it.priceCents, cur) + " each"}</span></th>`).join("")}
-      <th class="sum-col">Items</th><th>Shipping</th><th class="total">Total</th>
+      <th class="sum-col">Items</th><th>運費</th><th class="total">總數</th>
     </tr></thead>
     <tbody>
       ${s.people.map((p) => `<tr class="${same(p.username, me) ? "mine" : ""}">
@@ -433,8 +433,8 @@ function renderGroupBuy() {
       </tr>`).join("")}
     </tbody>
     <tfoot>
-      <tr><td>Total ordered</td>${s.items.map((it) => `<td class="num">${it.totalQty}</td>`).join("")}<td class="sum-col"></td><td></td><td></td></tr>
-      <tr class="cost"><td>Item cost</td>${s.items.map((it) => `<td>${money(it.totalCents, cur)}</td>`).join("")}
+      <tr><td>總件數</td>${s.items.map((it) => `<td class="num">${it.totalQty}</td>`).join("")}<td class="sum-col"></td><td></td><td></td></tr>
+      <tr class="cost"><td>貨品總金額</td>${s.items.map((it) => `<td>${money(it.totalCents, cur)}</td>`).join("")}
         <td class="sum-col">${money(s.itemsCents, cur)}</td><td>${money(s.shippingCents, cur)}</td><td class="grand">${money(s.grandTotalCents, cur)}</td></tr>
     </tfoot>
   </table></div>
