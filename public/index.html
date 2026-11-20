@@ -130,12 +130,14 @@ button.icon:hover { color: var(--danger); border-color: var(--line); }
 
 /* item / people lists */
 .list { display: grid; gap: 6px; }
-.li { display: grid; grid-template-columns: 1fr 110px 34px; gap: 6px; align-items: center; }
+.li { display: grid; grid-template-columns: 1fr 124px 34px; gap: 6px; align-items: center; }
 .li.person { grid-template-columns: 1fr 34px; padding: 6px 4px 6px 10px; border-radius: 8px; background: var(--bg); }
 .li .nm { min-width: 0; overflow-wrap: anywhere; }
 .price-wrap { position: relative; }
 .price-wrap span { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
-.price-wrap input { padding-left: 24px; text-align: right; font-family: var(--mono); }
+.cur-pick { display: inline-flex; align-items: center; gap: 6px; }
+.cur-pick select { width: auto; padding: 3px 8px; font-size: 13px; }
+.price-wrap input { padding-left: calc(16px + var(--sym-w, 1ch)); text-align: right; font-family: var(--mono); }
 .price-wrap input.pending { border-color: var(--warn); }
 .price-wrap input.pending::placeholder { color: var(--warn); }
 
@@ -216,8 +218,27 @@ let pollTimer = null;
 // ---------- utilities ----------
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
-const money = (cents, cur = "$") => cents == null ? "—" : cur + (cents / 100).toLocaleString("zh-HK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const plain = (cents) => cents == null ? "" : (cents / 100).toFixed(2);
+// Currency code -> [name, symbol]. Yen and won are shown without cents.
+const CURRENCIES = {
+  HKD: ["港幣", "HK$"], USD: ["美元", "US$"], JPY: ["日圓", "¥"], CNY: ["人民幣", "RMB "],
+  KRW: ["韓圜", "₩"], TWD: ["新台幣", "NT$"], GBP: ["英鎊", "£"], EUR: ["歐元", "€"],
+  AUD: ["澳元", "A$"], CAD: ["加元", "C$"], SGD: ["新加坡元", "S$"], MYR: ["馬幣", "RM "], THB: ["泰銖", "฿"],
+};
+const NO_CENTS = ["JPY", "KRW"];
+const sym = (code) => CURRENCIES[code] ? CURRENCIES[code][1] : (code || "$");  // older group buys stored a symbol
+const symWidth = (code) => `--sym-w:${sym(code).trim().length}ch`;
+const money = (cents, code = "HKD") => {
+  if (cents == null) return "—";
+  const d = NO_CENTS.includes(code) ? 0 : 2;
+  return sym(code) + (cents / 100).toLocaleString("zh-HK", { minimumFractionDigits: d, maximumFractionDigits: d });
+};
+const currencyOptions = (selected) => {
+  const opts = Object.entries(CURRENCIES).map(([code, [name, s]]) =>
+    `<option value="${code}" ${code === selected ? "selected" : ""}>${code} ${name} (${s.trim()})</option>`);
+  if (!CURRENCIES[selected]) opts.unshift(`<option value="" selected disabled>${esc(selected || "$")}（舊設定）</option>`);
+  return opts.join("");
+};
+const plain = (cents, code) => cents == null ? "" : NO_CENTS.includes(code) ? String(Math.round(cents / 100)) : (cents / 100).toFixed(2);
 
 function toast(msg, isErr = false) {
   const t = document.getElementById("toast");
@@ -319,7 +340,7 @@ async function renderHome() {
       <h2>開團</h2>
       <div class="row">
         <input type="text" id="new-name" placeholder="夾團團名 e.g. EN餐車" maxlength="80" required>
-        <input type="text" id="new-cur" value="$" maxlength="4" aria-label="Currency symbol" style="flex:0 0 64px;text-align:center">
+        <select id="new-cur" aria-label="貨幣" style="flex:0 1 190px">${currencyOptions("HKD")}</select>
         <button class="primary" type="submit">Create</button>
       </div>
       <label class="row small muted" style="gap:1px"><input type="checkbox" id="new-me" checked> 我有份買</label>
@@ -344,7 +365,7 @@ async function renderHome() {
     try {
       const gb = await call("POST", "/groupbuys", {
         name: document.getElementById("new-name").value,
-        currency: document.getElementById("new-cur").value || "$",
+        currency: document.getElementById("new-cur").value,
         includeMe: document.getElementById("new-me").checked,
       });
       location.hash = "gb-" + gb.id;
@@ -386,6 +407,9 @@ function renderGroupBuy() {
       <span class="pill ${isOrg ? "org" : ""}">${isOrg ? "你係開團人" : isMember ? "You joined" : "Viewing"}</span>
     </div>
     <div class="row small muted">開團人 <b style="color:var(--fg)">${esc(g.organiser)}</b>
+      <span class="cur-pick">貨幣 ${isOrg
+        ? `<select id="gb-cur" aria-label="更改貨幣">${currencyOptions(cur)}</select>`
+        : `<b style="color:var(--fg)">${CURRENCIES[cur] ? `${cur} ${CURRENCIES[cur][0]}` : esc(cur)}</b>`}</span>
       <button class="ghost small" id="copy-link">Copy link</button>
       ${isOrg ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
       ${!isMember ? `<button class="primary small" id="join-gb">加入呢個團</button>` : ""}
@@ -411,14 +435,14 @@ function renderGroupBuy() {
     <div class="list">
       ${g.items.length ? g.items.map((it) => `<div class="li">
         <input type="text" class="item-name" data-id="${esc(it.id)}" value="${esc(it.name)}" aria-label="貨品名稱" ${isMember ? "" : "disabled"}>
-        <div class="price-wrap"><span>${esc(cur)}</span>
-          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents)}" placeholder="${canPrice(it) ? "設定" : "待定"}" aria-label="${esc(it.name)} 的單價" ${canPrice(it) ? "" : "disabled"}></div>
+        <div class="price-wrap" style="${symWidth(cur)}"><span>${esc(sym(cur))}</span>
+          <input type="number" min="0" step="0.01" inputmode="decimal" class="item-price ${it.priceCents == null ? "pending" : ""}" data-id="${esc(it.id)}" value="${plain(it.priceCents, cur)}" placeholder="${canPrice(it) ? "設定" : "待定"}" aria-label="${esc(it.name)} 的單價" ${canPrice(it) ? "" : "disabled"}></div>
         ${canPrice(it) ? `<button class="icon del-item" data-id="${esc(it.id)}" aria-label="移除 ${esc(it.name)}" title="移除貨品">×</button>` : "<span></span>"}
       </div>`).join("") : `<div class="empty">未有貨品，請在下面加入。</div>`}
     </div>
     ${isMember ? `<form class="row" id="add-item">
       <input type="text" id="new-item" placeholder="貨品名稱，例如：Base kit" maxlength="80" required style="flex:2 1 150px">
-      ${isMember ? `<div class="price-wrap" style="flex:1 1 90px"><span>${esc(cur)}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="單價"></div>` : ""}
+      ${isMember ? `<div class="price-wrap" style="flex:1 1 90px;${symWidth(cur)}"><span>${esc(sym(cur))}</span><input type="number" id="new-price" min="0" step="0.01" inputmode="decimal" placeholder="0.00" aria-label="單價"></div>` : ""}
       <button type="submit">加入貨品</button>
     </form>
     ${isOrg ? "" : `<p class="hint">你可以加貨品同埋設定價錢。已經有嘅價錢，只有團長或者加嗰件貨品嘅人可以改。</p>`}` : ""}
@@ -443,8 +467,8 @@ function renderGroupBuy() {
   // Shipping panel
   const shipPanel = `<section class="panel">
     <div class="panel-head"><h2>運費</h2><span class="muted small">for the whole order</span></div>
-    <div class="price-wrap"><span>${esc(cur)}</span>
-      <input type="number" id="ship" min="0" step="0.01" inputmode="decimal" value="${plain(g.shippingCents)}" placeholder="0.00" aria-label="Shipping for the whole order" ${isMember ? "" : "disabled"}></div>
+    <div class="price-wrap" style="${symWidth(cur)}"><span>${esc(sym(cur))}</span>
+      <input type="number" id="ship" min="0" step="0.01" inputmode="decimal" value="${plain(g.shippingCents, cur)}" placeholder="0.00" aria-label="Shipping for the whole order" ${isMember ? "" : "disabled"}></div>
     <label class="label" for="split">如何分運費</label>
     <select id="split" ${isMember ? "" : "disabled"}>
       <option value="subtotal" ${g.shippingSplit === "subtotal" ? "selected" : ""}>按貨品金額（買得多，付得多）</option>
@@ -532,6 +556,7 @@ function wireGroupBuy() {
     change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `已移除 ${el.dataset.u}`);
   });
 
+  if ($("gb-cur")) $("gb-cur").addEventListener("change", () => change("PATCH", "", { currency: $("gb-cur").value }, "已更改貨幣"));
   if ($("join-gb")) $("join-gb").onclick = () => change("POST", "/participants", { username: me }, "你已加入呢個團");
   if ($("add-item")) $("add-item").onsubmit = (e) => {
     e.preventDefault();

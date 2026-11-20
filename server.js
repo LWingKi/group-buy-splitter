@@ -49,6 +49,13 @@ function ensureUser(raw) {
   return db.users[k];
 }
 
+// Currencies offered in the dropdown. Older group buys may hold a free-text symbol such as "$".
+const CURRENCIES = ["HKD", "USD", "JPY", "CNY", "KRW", "TWD", "GBP", "EUR", "AUD", "CAD", "SGD", "MYR", "THB"];
+function cleanCurrency(c) {
+  if (!CURRENCIES.includes(c)) throw httpError(400, "請喺清單揀一種貨幣。");
+  return c;
+}
+
 function httpError(status, message) { const e = new Error(message); e.status = status; return e; }
 
 function toCents(v, field) {
@@ -96,7 +103,9 @@ function summarize(gb) {
   } else {
     weights = people.map((p) => p.subtotalCents);
   }
-  const shares = allocate(gb.shippingCents || 0, weights);
+  // Yen and won have no cents, so split shipping in whole units for them.
+  const unit = ["JPY", "KRW"].includes(gb.currency) ? 100 : 1;
+  const shares = allocate(Math.round((gb.shippingCents || 0) / unit), weights).map((x) => x * unit);
   people.forEach((p, i) => { p.shippingCents = shares[i]; p.totalCents = p.subtotalCents + shares[i]; });
 
   const itemsCents = items.reduce((a, it) => a + (it.totalCents || 0), 0);
@@ -183,7 +192,7 @@ async function api(req, res, url) {
     if (name.length > 80) throw httpError(400, "團購名稱最多 80 個字元。");
     const gb = {
       id: newId(), name, organiser: me, createdAt: Date.now(),
-      currency: String(body.currency || "$").slice(0, 4),
+      currency: body.currency ? cleanCurrency(body.currency) : "HKD",
       shippingCents: 0, shippingSplit: "subtotal",
       items: [], participants: body.includeMe === false ? [] : [me], quantities: {},
     };
@@ -222,7 +231,7 @@ async function api(req, res, url) {
     }
     if ("currency" in body) {
       requireOrganiser(role, "更改貨幣");
-      gb.currency = String(body.currency || "$").slice(0, 4);
+      gb.currency = cleanCurrency(body.currency);
     }
     if ("shippingCents" in body || "shipping" in body) {
       gb.shippingCents = toCents(body.shipping ?? body.shippingCents / 100, "運費") || 0;
