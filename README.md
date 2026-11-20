@@ -1,4 +1,4 @@
-# 夾單計數機
+# 夾團台
 
 計算團購（夾單）每個人要付多少錢。朋友只需輸入 Discord 名稱就可以使用，無需密碼。
 
@@ -25,16 +25,17 @@ npm start
 
 | 操作 | 團長 | 團員 |
 |---|---|---|
-| 加入貨品 | ✅ | ✅（價錢顯示「待定」） |
+| 加入貨品（可以連價錢） | ✅ | ✅ |
 | 更改貨品名稱 | ✅ | ✅ |
-| 設定或更改價錢 | ✅ | ❌ |
-| 移除貨品 | ✅ | ❌ |
+| 更改價錢 | ✅ 任何貨品 | 只可改自己加嘅貨品 |
+| 移除貨品 | ✅ 任何貨品 | 只可移除自己加嘅貨品 |
 | 加入團員 | ✅ | ✅ |
+| 自己加入其他人嘅團 | — | ✅（首頁「其他夾團」→「加入呢個團」） |
 | 移除團員 | ✅ 任何人 | 只可移除自己（退出） |
 | 更改數量 | ✅ 任何人 | 只可改自己那一行 |
 | 設定運費及分攤方式 | ✅ | ✅ |
 | 查看所有總數 | ✅ | ✅ |
-| 更改團購名稱／刪除團購 | ✅ | ❌ |
+| 更改團購名稱、貨幣／刪除團購 | ✅ | ❌ |
 | 剔「已交收」／「已付款」 | ✅ | ❌ |
 | 睇「已交收」／「已付款」 | ✅ 所有人 | 只睇到自己 |
 | 完結／重新開放團購 | ✅ | ❌ |
@@ -68,19 +69,3 @@ npm start
    - `ACCESS_CODE` = 你自己諗嘅通行碼
 4. Settings → Networking → Generate Domain，就會有網址可以分享。
 5. 之後每次 `git push`，Railway 會自動更新網站，資料會保留。
-
-## 部署（Oracle Cloud 免費 server）
-
-1. 喺 Oracle Cloud 開一部 Ubuntu 免費 VM，喺 Security List 開 TCP port 80 同 443。
-2. 喺 https://www.duckdns.org 攞一個免費網址，指向部 VM 嘅 Public IP。
-3. SSH 入部 VM：
-
-   ```bash
-   git clone https://github.com/LWingKi/group-buy-splitter.git
-   cd group-buy-splitter
-   bash deploy/oracle-setup.sh
-   ```
-
-   跟住輸入網址同通行碼。腳本會安裝 Node.js 同 Caddy（自動 HTTPS），將網站設定成背景服務（重開機都會自動啟動）。
-4. 以後更新：喺 VM 入面 `cd group-buy-splitter && bash deploy/update.sh`。
-5. 資料喺 `/var/lib/groupbuy/data.json`；改通行碼：`sudo nano /etc/groupbuy.env` 然後 `sudo systemctl restart groupbuy`。
