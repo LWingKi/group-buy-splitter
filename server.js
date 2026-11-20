@@ -120,11 +120,20 @@ function summarize(gb) {
   };
 }
 
+// 已交收 / 已付款: the organiser sees everyone's, a member sees only their own.
+function visibleStatus(gb, me, isOrganiser, isMember) {
+  const all = gb.status || {};
+  if (isOrganiser) return all;
+  if (isMember && all[key(me)]) return { [key(me)]: all[key(me)] };
+  return {};
+}
+
 function view(gb, me) {
   const isOrganiser = key(gb.organiser) === key(me);
   const isMember = isOrganiser || gb.participants.some((u) => key(u) === key(me));
   return {
     ...gb,
+    status: visibleStatus(gb, me, isOrganiser, isMember),
     role: isOrganiser ? "organiser" : isMember ? "participant" : "viewer",
     summary: summarize(gb),
   };
@@ -168,13 +177,13 @@ async function api(req, res, url) {
     const brief = (v) => {
       const mine = v.summary.people.find((p) => key(p.username) === key(me));
       return {
-        id: v.id, name: v.name, organiser: v.organiser, createdAt: v.createdAt, currency: v.currency,
+        id: v.id, name: v.name, organiser: v.organiser, createdAt: v.createdAt, currency: v.currency, closed: !!v.closed,
         participantCount: v.participants.length, itemCount: v.items.length,
         grandTotalCents: v.summary.grandTotalCents, myTotalCents: mine ? mine.totalCents : null,
         pendingPrices: v.summary.pendingPrices,
       };
     };
-    const byNew = (a, b) => b.createdAt - a.createdAt;
+    const byNew = (a, b) => (!!a.closed - !!b.closed) || b.createdAt - a.createdAt;  // open ones first
     return {
       hosting: all.filter((v) => v.role === "organiser").sort(byNew).map(brief),
       joined: all.filter((v) => v.role === "participant").sort(byNew).map(brief),
@@ -211,11 +220,16 @@ async function api(req, res, url) {
   // Anyone can join a group buy themselves.
   if (parts[2] === "participants" && method === "POST" && key(body.username || "") === key(me)) {
     const { gb } = loadGb(id, me, { member: false });
+    if (gb.closed) throw httpError(403, "呢個團已經完結，唔可以再加入。");
     if (gb.participants.some((p) => key(p) === key(me))) throw httpError(409, "你已經喺呢個團入面。");
     gb.participants.push(me); save(); return view(gb, me);
   }
 
   const { gb, role } = loadGb(id, me);
+  // A closed group buy is read-only; the organiser can still reopen or delete it.
+  const isReopen = parts[2] === "reopen" && method === "POST";
+  const isDeleteGb = parts.length === 2 && method === "DELETE";
+  if (gb.closed && !isReopen && !isDeleteGb) throw httpError(403, "呢個團已經完結，唔可以再改。團長可以重新開放。");
   // The organiser, or whoever added the item, may change its price or remove it.
   const requireItemOwner = (item, what) => {
     if (role !== "organiser" && key(item.addedBy || "") !== key(me)) throw httpError(403, `只有團長或加呢件貨品嘅人可以${what}。`);
@@ -247,6 +261,29 @@ async function api(req, res, url) {
     requireOrganiser(role, "刪除團購");
     delete db.groupbuys[id]; save();
     return { deleted: true };
+  }
+
+  // Close / reopen
+  if (parts[2] === "close" && method === "POST") {
+    requireOrganiser(role, "完結團購");
+    gb.closed = true; gb.closedAt = Date.now();
+    save(); return view(gb, me);
+  }
+  if (isReopen) {
+    requireOrganiser(role, "重新開放團購");
+    gb.closed = false; delete gb.closedAt;
+    save(); return view(gb, me);
+  }
+
+  // 已交收 / 已付款 (organiser only)
+  if (parts[2] === "status" && method === "PUT") {
+    requireOrganiser(role, "更改交收同付款狀態");
+    const target = gb.participants.find((p) => key(p) === key(body.username));
+    if (!target) throw httpError(400, "這個人不在這個團購內。");
+    const row = ((gb.status ||= {})[key(target)] ||= { paid: false, delivered: false });
+    if ("paid" in body) row.paid = !!body.paid;
+    if ("delivered" in body) row.delivered = !!body.delivered;
+    save(); return view(gb, me);
   }
 
   // Items
@@ -293,6 +330,7 @@ async function api(req, res, url) {
       if (role !== "organiser" && key(target) !== key(me)) throw httpError(403, "你只可以將自己移除。如要移除其他人，請聯絡團長。");
       gb.participants = gb.participants.filter((p) => key(p) !== key(target));
       delete gb.quantities[key(target)];
+      if (gb.status) delete gb.status[key(target)];
       save(); return view(gb, me);
     }
   }

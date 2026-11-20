@@ -165,6 +165,12 @@ tfoot tr.cost td:first-child { font-family: var(--body); font-weight: 600; }
 tfoot td.grand { color: var(--accent); }
 
 .hint { font-size: 13px; color: var(--muted); }
+.confirm.warn { color: var(--warn); font-weight: 600; }
+.notice.done { background: var(--accent-soft); color: var(--accent); }
+.pill.done { background: var(--accent-soft); color: var(--accent); }
+td.status, th.status-col { text-align: center; }
+td.status input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+td.status input:disabled { cursor: default; }
 .notice { padding: 10px 14px; border-radius: 10px; background: var(--warn-soft); color: var(--warn); font-size: 14px; }
 
 /* toast */
@@ -323,7 +329,7 @@ function card(g, hosting) {
   return `<a class="gb-card" href="#gb-${esc(g.id)}">
     <span class="t">${esc(g.name)}</span>
     <span class="amt">${g.myTotalCents == null ? money(g.grandTotalCents, g.currency) : money(g.myTotalCents, g.currency)}</span>
-    <span class="sub">${hosting ? "" : `團長：${esc(g.organiser)} · `}${g.participantCount} 人 · ${g.itemCount} 款貨品${pending}</span>
+    <span class="sub">${g.closed ? `<span class="pill done">已完結</span> ` : ""}${hosting ? "" : `團長：${esc(g.organiser)} · `}${g.participantCount} 人 · ${g.itemCount} 款貨品${pending}</span>
     <span class="sub r">${g.myTotalCents == null ? "全單總數" : `你要付 · 全單 ${money(g.grandTotalCents, g.currency)}`}</span>
   </a>`;
 }
@@ -393,7 +399,20 @@ async function openGroupBuy(id) {
 
 function renderGroupBuy() {
   const g = current, s = g.summary, cur = g.currency;
-  const isOrg = g.role === "organiser", isMember = g.role !== "viewer";
+  // orgRole / memberRole say who you are; isOrg / isMember say what you can edit (nothing once closed).
+  const closed = !!g.closed;
+  const orgRole = g.role === "organiser", memberRole = g.role !== "viewer";
+  const isOrg = orgRole && !closed, isMember = memberRole && !closed;
+  // The server only sends statuses you may see: all for the organiser, your own for members.
+  const st = (u) => g.status?.[u.toLowerCase()] || { paid: false, delivered: false };
+  const statusCell = (u, field, first) => {
+    const cls = `status${first ? " sum-col" : ""}`;
+    const label = field === "paid" ? "已付款" : "已交收";
+    if (orgRole) return `<td class="${cls}"><input type="checkbox" class="status-in" data-u="${esc(u)}" data-field="${field}" ${st(u)[field] ? "checked" : ""} ${closed ? "disabled" : ""} aria-label="${esc(u)} ${label}"></td>`;
+    if (same(u, me)) return `<td class="${cls}">${st(u)[field] ? `<span class="pill done">${label}</span>` : `<span class="pill">未${label.slice(1)}</span>`}</td>`;
+    return `<td class="${cls} muted" title="只有團長同本人睇到">—</td>`;
+  };
+  const countOf = (field) => g.participants.filter((u) => st(u)[field]).length;
   const canPrice = (it) => isOrg || (isMember && same(it.addedBy || "", me));
   const canQty = (u) => isOrg || (isMember && same(u, me));
   const qty = (u, itemId) => g.quantities[u.toLowerCase()]?.[itemId] || 0;
@@ -404,15 +423,18 @@ function renderGroupBuy() {
     <a href="#" class="small muted">← 所有夾團</a>
     <div class="gb-title">
       <input type="text" id="gb-name" value="${esc(g.name)}" maxlength="80" aria-label="Group buy name" ${isOrg ? "" : "disabled"}>
-      <span class="pill ${isOrg ? "org" : ""}">${isOrg ? "你係開團人" : isMember ? "You joined" : "Viewing"}</span>
+      <span class="pill ${orgRole ? "org" : ""}">${orgRole ? "你係開團人" : memberRole ? "You joined" : "Viewing"}</span>${closed ? `<span class="pill done">已完結</span>` : ""}
     </div>
     <div class="row small muted">開團人 <b style="color:var(--fg)">${esc(g.organiser)}</b>
       <span class="cur-pick">貨幣 ${isOrg
         ? `<select id="gb-cur" aria-label="更改貨幣">${currencyOptions(cur)}</select>`
         : `<b style="color:var(--fg)">${CURRENCIES[cur] ? `${cur} ${CURRENCIES[cur][0]}` : esc(cur)}</b>`}</span>
       <button class="ghost small" id="copy-link">Copy link</button>
-      ${isOrg ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
-      ${!isMember ? `<button class="primary small" id="join-gb">加入呢個團</button>` : ""}
+      ${orgRole ? (closed
+        ? `<button class="small" id="reopen-gb">重新開放</button>`
+        : `<span id="close-slot"><button class="small" id="close-gb">完結團購</button></span>`) : ""}
+      ${orgRole ? `<span id="del-slot"><button class="ghost small danger" id="del-gb">Delete group buy</button></span>` : ""}
+      ${!memberRole && !closed ? `<button class="primary small" id="join-gb">加入呢個團</button>` : ""}
       ${isMember && !isOrg ? `<span id="leave-slot"><button class="ghost small danger" id="leave-gb">Leave group buy</button></span>` : ""}
     </div>
   </div>`;
@@ -421,11 +443,13 @@ function renderGroupBuy() {
     <div><span class="label">全單總值</span><span class="v">${money(s.grandTotalCents, cur)}</span></div>
     <div><span class="label">貨品總值</span><span class="v">${money(s.itemsCents, cur)}</span></div>
     <div><span class="label">運費</span><span class="v">${money(s.shippingCents, cur)}</span></div>
-    ${mine ? `<div class="me"><span class="label">你要比</span><span class="v">${money(mine.totalCents, cur)}</span></div>` : ""}
+    ${mine ? `<div class="me"><span class="label">你要比</span><span class="v">${money(mine.totalCents, cur)}</span><span class="small">${st(me).delivered ? "已交收" : "未交收"} · ${st(me).paid ? "已付款" : "未付款"}</span></div>` : ""}
   </div>`;
 
   const notices = [];
-  if (!isMember) notices.push(`你未加入呢個團。想一齊夾，請按「加入呢個團」。`);
+  const closedBanner = closed
+    ? `<p class="notice done">呢個團已經完結${g.closedAt ? `（${new Date(g.closedAt).toLocaleDateString("zh-HK")}）` : ""}，所有資料已鎖定。${orgRole ? "如要修改，請按「重新開放」。" : ""}</p>` : "";
+  if (!memberRole && !closed) notices.push(`你未加入呢個團。想一齊夾，請按「加入呢個團」。`);
   if (s.pendingPrices) notices.push(`有 ${s.pendingPrices} 件貨品未定價，暫時不計入總數。團長或加嗰件貨品嘅人可以喺「Item」設定價錢。`);
   if (s.unallocatedShippingCents > 0) notices.push(`暫時未能分攤運費，因為未有人買已定價的貨品。`);
 
@@ -484,6 +508,7 @@ function renderGroupBuy() {
       <th>夾團人名</th>
       ${g.items.map((it) => `<th>${esc(it.name)}<span class="ip ${it.priceCents == null ? "pending" : ""}">${it.priceCents == null ? "price pending" : money(it.priceCents, cur) + " each"}</span></th>`).join("")}
       <th class="sum-col">Items</th><th>運費</th><th class="total">總數</th>
+      <th class="sum-col status-col">已交收</th><th class="status-col">已付款</th>
     </tr></thead>
     <tbody>
       ${s.people.map((p) => `<tr class="${same(p.username, me) ? "mine" : ""}">
@@ -492,18 +517,22 @@ function renderGroupBuy() {
         <td class="num sum-col">${money(p.subtotalCents, cur)}</td>
         <td class="num">${money(p.shippingCents, cur)}</td>
         <td class="num total">${money(p.totalCents, cur)}</td>
+        ${statusCell(p.username, "delivered", true)}${statusCell(p.username, "paid")}
       </tr>`).join("")}
     </tbody>
     <tfoot>
-      <tr><td>總件數</td>${s.items.map((it) => `<td class="num">${it.totalQty}</td>`).join("")}<td class="sum-col"></td><td></td><td></td></tr>
+      <tr><td>總件數</td>${s.items.map((it) => `<td class="num">${it.totalQty}</td>`).join("")}<td class="sum-col"></td><td></td><td></td>
+        ${orgRole
+          ? `<td class="sum-col status num">${countOf("delivered")}/${g.participants.length}</td><td class="status num">${countOf("paid")}/${g.participants.length}</td>`
+          : `<td class="sum-col"></td><td></td>`}</tr>
       <tr class="cost"><td>貨品總金額</td>${s.items.map((it) => `<td>${money(it.totalCents, cur)}</td>`).join("")}
-        <td class="sum-col">${money(s.itemsCents, cur)}</td><td>${money(s.shippingCents, cur)}</td><td class="grand">${money(s.grandTotalCents, cur)}</td></tr>
+        <td class="sum-col">${money(s.itemsCents, cur)}</td><td>${money(s.shippingCents, cur)}</td><td class="grand">${money(s.grandTotalCents, cur)}</td><td class="sum-col"></td><td></td></tr>
     </tfoot>
   </table></div>
   <p class="hint">${isOrg ? "你是團長，可以更改所有人的數量。" : isMember ? "你只可以更改自己那一行的數量，其他人的已鎖定。" : ""}</p>`
   : `<div class="empty">加入最少一件貨品和一位團員，就可以開始填寫訂單。</div>`;
 
-  app.innerHTML = topBar() + header + totals
+  app.innerHTML = topBar() + header + closedBanner + totals
     + notices.map((n) => `<p class="notice">${n}</p>`).join("")
     + `<section style="display:grid;gap:10px"><h2>訂單</h2>${grid}</section>`
     + `<div class="grid-3">${itemsPanel}${peoplePanel}${shipPanel}</div>`;
@@ -527,9 +556,9 @@ function wireGroupBuy() {
     catch { toast(link); }
   };
 
-  const confirmIn = (slotId, text, action) => {
+  const confirmIn = (slotId, text, action, cls = "") => {
     const slot = $(slotId);
-    slot.innerHTML = `<span class="confirm">${text} <button class="small danger" id="yes">確定</button><button class="ghost small" id="no">取消</button></span>`;
+    slot.innerHTML = `<span class="confirm ${cls}">${text} <button class="small danger" id="yes">確定</button><button class="ghost small" id="no">取消</button></span>`;
     slot.querySelector("#no").onclick = renderGroupBuy;
     slot.querySelector("#yes").onclick = action;
   };
@@ -537,6 +566,15 @@ function wireGroupBuy() {
     try { await call("DELETE", "/groupbuys/" + current.id); toast("已刪除團購"); location.hash = ""; }
     catch (e) { toast(e.message, true); }
   });
+  if ($("close-gb")) $("close-gb").onclick = () => {
+    const left = current.participants.filter((u) => !current.status?.[u.toLowerCase()]?.delivered);
+    const close = () => change("POST", "/close", {}, "已完結團購");
+    if (!left.length) return close();
+    confirmIn("close-slot", `⚠ 仲有 ${left.length} 人未交收（${left.map(esc).join("、")}）。確定要完結？`, close, "warn");
+  };
+  if ($("reopen-gb")) $("reopen-gb").onclick = () => change("POST", "/reopen", {}, "已重新開放");
+  document.querySelectorAll(".status-in:not(:disabled)").forEach((el) => el.addEventListener("change", () =>
+    change("PUT", "/status", { username: el.dataset.u, [el.dataset.field]: el.checked })));
   if ($("leave-gb")) $("leave-gb").onclick = () => confirmIn("leave-slot", "確定退出？你的訂單會被清除。", async () => {
     try { await call("DELETE", `/groupbuys/${current.id}/participants/${encodeURIComponent(me)}`); toast("你已退出團購"); location.hash = ""; }
     catch (e) { toast(e.message, true); }
