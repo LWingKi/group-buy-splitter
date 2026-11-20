@@ -68,7 +68,7 @@ p { margin: 0; }
 
 /* controls */
 input, select, button { font: inherit; color: inherit; }
-input[type="text"], input[type="number"], select {
+input[type="text"], input[type="number"], input[type="password"], select {
   background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
   padding: 8px 10px; min-width: 0; width: 100%;
 }
@@ -222,6 +222,9 @@ function wireThemeButton() {
   });
 }
 try { me = localStorage.getItem("gb-user"); } catch {}
+let accessCode = "";
+try { accessCode = localStorage.getItem("gb-code") || ""; } catch {}
+let codeRequired = null;   // asked from the server on first load
 let current = null;     // the group buy being viewed
 let pollTimer = null;
 
@@ -260,11 +263,23 @@ function toast(msg, isErr = false) {
 async function call(method, path, body) {
   const res = await fetch("/api" + path, {
     method,
-    headers: { "Content-Type": "application/json", ...(me ? { "X-User": encodeURIComponent(me) } : {}) },
+    headers: {
+      "Content-Type": "application/json",
+      ...(me ? { "X-User": encodeURIComponent(me) } : {}),
+      ...(accessCode ? { "X-Access-Code": accessCode } : {}),
+    },
     body: body ? JSON.stringify(body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "操作失敗，請再試。");
+  if (!res.ok) {
+    // Wrong or changed access code: forget it and go back to the sign-in page.
+    if (data.code === "bad_code" && path !== "/login") {
+      accessCode = ""; try { localStorage.removeItem("gb-code"); } catch {}
+      clearInterval(pollTimer);
+      renderLogin();
+    }
+    throw new Error(data.error || "操作失敗，請再試。");
+  }
   return data;
 }
 
@@ -278,9 +293,12 @@ async function change(method, path, body, okMsg) {
 }
 
 // ---------- routing ----------
-function route() {
+async function route() {
   clearInterval(pollTimer);
-  if (!me) return renderLogin();
+  if (codeRequired === null) {
+    try { codeRequired = (await call("GET", "/config")).accessCodeRequired; } catch { codeRequired = true; }
+  }
+  if (!me || (codeRequired && !accessCode)) return renderLogin();
   const m = location.hash.match(/^#gb-(.+)$/);
   if (m) return openGroupBuy(m[1]);
   renderHome();
@@ -310,7 +328,9 @@ function renderLogin() {
     <p class="muted">請輸入你嘅Discord名。呢個將會係你的Account，不需要密碼。</p>
     <form id="login-form">
       <label class="label" for="login-name">Discord name (<@你個名>)</label>
-      <input type="text" id="login-name" autocomplete="username" placeholder="e.g. waterfish" maxlength="40" required>
+      <input type="text" id="login-name" autocomplete="username" placeholder="e.g. waterfish" maxlength="40" required value="${esc(me || "")}">
+      ${codeRequired ? `<label class="label" for="login-code">通行碼</label>
+      <input type="password" id="login-code" autocomplete="current-password" placeholder="問開團人攞" maxlength="100" required value="${esc(accessCode)}">` : ""}
       <button class="primary" type="submit">繼續</button>
     </form>
   </div>`;
@@ -320,9 +340,10 @@ function renderLogin() {
   document.getElementById("login-form").onsubmit = async (e) => {
     e.preventDefault();
     try {
+      if (codeRequired) accessCode = document.getElementById("login-code").value;
       const r = await call("POST", "/login", { username: input.value });
       me = r.username;
-      try { localStorage.setItem("gb-user", me); } catch {}
+      try { localStorage.setItem("gb-user", me); localStorage.setItem("gb-code", accessCode); } catch {}
       route();
     } catch (err) { toast(err.message, true); }
   };
@@ -409,7 +430,7 @@ async function renderHome() {
 async function openGroupBuy(id) {
   app.innerHTML = topBar() + `<p class="muted">載入中…</p>`;
   wireTopBar();
-  try { current = await call("GET", "/groupbuys/" + id); }
+  try { current = await call("GET", "/groupbuys/" + encodeURIComponent(id)); }
   catch (e) { app.innerHTML = topBar() + `<p class="notice">${esc(e.message)} <a href="#">返回我的團購</a></p>`; wireTopBar(); return; }
   renderGroupBuy();
   // Pick up other people's edits, but never while someone is typing.
@@ -417,7 +438,7 @@ async function openGroupBuy(id) {
     const a = document.activeElement;
     if (a && (a.tagName === "INPUT" || a.tagName === "SELECT")) return;
     try {
-      const fresh = await call("GET", "/groupbuys/" + id);
+      const fresh = await call("GET", "/groupbuys/" + encodeURIComponent(id));
       if (JSON.stringify(fresh) !== JSON.stringify(current)) { current = fresh; renderGroupBuy(); }
     } catch {}
   }, 5000);

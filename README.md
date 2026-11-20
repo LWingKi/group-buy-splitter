@@ -51,6 +51,20 @@ npm start
 - 運費可以按貨品金額（預設）、按件數，或由有落單的人平分。每人金額計至仙位，加起來一定等於全單運費。
 - 未定價的貨品在團長設定價錢前不會計入總數。
 
-## 注意
+## 安全
 
-因為沒有密碼，任何人輸入別人的 Discord 名稱就可以用對方的身份操作。朋友之間使用沒有問題，但不要用於重要用途。
+- **通行碼**：設定環境變數 `ACCESS_CODE`，所有人登入時都要輸入呢個通行碼，冇通行碼嘅人乜都睇唔到、改唔到。只喺 Discord 入面分享，唔好公開。想換通行碼，改 `ACCESS_CODE` 再重新啟動，所有人會被登出，要用新通行碼再登入。
+- **防止亂試通行碼**：同一個 IP 15 分鐘內錯 10 次就會被暫停。
+- **防止洗版**：每個 IP 每分鐘最多 60 次修改；每人最多同時開 20 個團，每個團最多 100 款貨品、100 人；全站最多 3000 個用戶、1000 個團。
+- **防止注入**：所有輸入都以純文字顯示，網頁亦設定咗 Content-Security-Policy，唔會執行外來嘅 script。
+- 因為冇密碼，識通行碼嘅人輸入其他人嘅 Discord 名就可以用對方身份操作，所以只應該喺信任嘅朋友之間使用。
+
+## 部署（Railway）
+
+1. 用 GitHub 帳戶登入 https://railway.com ，New Project → Deploy from GitHub repo → 揀呢個 repo。
+2. 加一個 Volume，mount path 設為 `/data`。
+3. 喺 Variables 加：
+   - `DATA_FILE` = `/data/data.json`（一定要設，否則每次更新都會清空資料）
+   - `ACCESS_CODE` = 你自己諗嘅通行碼
+4. Settings → Networking → Generate Domain，就會有網址可以分享。
+5. 之後每次 `git push`，Railway 會自動更新網站，資料會保留。
