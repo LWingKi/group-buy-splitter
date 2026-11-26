@@ -139,6 +139,14 @@ button.icon:hover { color: var(--danger); border-color: var(--line); }
 .li .nm { min-width: 0; overflow-wrap: anywhere; }
 .price-wrap { position: relative; }
 .price-wrap span { position: absolute; left: 9px; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: 13px; pointer-events: none; }
+input[type="url"] { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; width: 100%; }
+.sale-link { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; max-width: 100%; padding: 8px 14px; border-radius: 10px; background: var(--accent-soft); color: var(--accent); font-weight: 600; text-decoration: none; justify-self: start; }
+.sale-link:hover { filter: brightness(0.97); text-decoration: underline; }
+.sale-host { font-weight: 400; font-size: 13px; opacity: .85; overflow-wrap: anywhere; min-width: 0; }
+.sale-edit { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+.sale-edit input { flex: 1 1 auto; }
+.sale-open { color: var(--accent); font-weight: 600; white-space: nowrap; text-decoration: none; }
+.sale-open:hover { text-decoration: underline; }
 .cur-pick { display: inline-flex; align-items: center; gap: 6px; }
 .cur-pick select { width: auto; padding: 3px 8px; font-size: 13px; }
 .price-wrap input { padding-left: calc(16px + var(--sym-w, 1ch)); text-align: right; font-family: var(--mono); }
@@ -250,6 +258,12 @@ const currencyOptions = (selected) => {
     `<option value="${code}" ${code === selected ? "selected" : ""}>${code} ${name} (${s.trim()})</option>`);
   if (!CURRENCIES[selected]) opts.unshift(`<option value="" selected disabled>${esc(selected || "$")}（舊設定）</option>`);
   return opts.join("");
+};
+const LINK_ICON = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>';
+// Short label for a link: the site name plus the start of the path.
+const urlLabel = (href) => {
+  try { const u = new URL(href); const rest = (u.pathname + u.search).replace(/\/$/, ""); return u.hostname.replace(/^www\./, "") + (rest.length > 28 ? rest.slice(0, 28) + "…" : rest); }
+  catch { return href; }
 };
 const fmtDate = (t) => new Date(t).toLocaleDateString("zh-HK", { year: "numeric", month: "long", day: "numeric" });
 const plain = (cents, code) => cents == null ? "" : NO_CENTS.includes(code) ? String(Math.round(cents / 100)) : (cents / 100).toFixed(2);
@@ -375,6 +389,7 @@ async function renderHome() {
         <select id="new-cur" aria-label="貨幣" style="flex:0 1 190px">${currencyOptions("HKD")}</select>
         <button class="primary" type="submit">Create</button>
       </div>
+      <input type="text" inputmode="url" autocomplete="url" id="new-url" placeholder="Sale 連結（可以留空）e.g. https://shop.example.com/sale" maxlength="500" aria-label="Sale 連結">
       <label class="row small muted" style="gap:1px"><input type="checkbox" id="new-me" checked> 我有份買</label>
     </form>
     <div class="grid-3">
@@ -418,6 +433,7 @@ async function renderHome() {
     try {
       const gb = await call("POST", "/groupbuys", {
         name: document.getElementById("new-name").value,
+        saleUrl: document.getElementById("new-url").value,
         currency: document.getElementById("new-cur").value,
         includeMe: document.getElementById("new-me").checked,
       });
@@ -484,6 +500,11 @@ function renderGroupBuy() {
       ${!memberRole && !closed ? `<button class="primary small" id="join-gb">加入呢個團</button>` : ""}
       ${isMember && !isOrg ? `<span id="leave-slot"><button class="ghost small danger" id="leave-gb">Leave group buy</button></span>` : ""}
     </div>
+    ${isOrg
+      ? `<div class="sale-edit">${LINK_ICON}<input type="text" inputmode="url" autocomplete="url" id="gb-url" value="${esc(g.saleUrl || "")}" placeholder="貼上 Sale 連結，等大家可以撳入去睇" maxlength="500" aria-label="Sale 連結">${g.saleUrl ? `<a class="sale-open small" href="${esc(g.saleUrl)}" target="_blank" rel="noopener noreferrer nofollow">打開 ↗</a>` : ""}</div>`
+      : g.saleUrl
+        ? `<a class="sale-link" href="${esc(g.saleUrl)}" target="_blank" rel="noopener noreferrer nofollow">${LINK_ICON}<span>睇 Sale 頁</span><span class="sale-host">${esc(urlLabel(g.saleUrl))}</span><span aria-hidden="true">↗</span></a>`
+        : ""}
   </div>`;
 
   const totals = `<div class="totals">
@@ -641,6 +662,7 @@ function wireGroupBuy() {
     change("DELETE", "/participants/" + encodeURIComponent(el.dataset.u), null, `已移除 ${el.dataset.u}`);
   });
 
+  if ($("gb-url")) onCommit($("gb-url"), () => change("PATCH", "", { saleUrl: $("gb-url").value }, $("gb-url").value.trim() ? "已儲存 Sale 連結" : "已移除 Sale 連結"));
   if ($("gb-cur")) $("gb-cur").addEventListener("change", () => change("PATCH", "", { currency: $("gb-cur").value }, "已更改貨幣"));
   if ($("join-gb")) $("join-gb").onclick = () => change("POST", "/participants", { username: me }, "你已加入呢個團");
   if ($("add-item")) $("add-item").onsubmit = (e) => {

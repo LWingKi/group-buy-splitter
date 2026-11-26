@@ -78,6 +78,19 @@ function cleanCurrency(c) {
   return c;
 }
 
+// The sale page link: only plain http(s) web addresses, so a link can't run code when clicked.
+function cleanUrl(raw) {
+  const text = cleanText(raw);
+  if (!text) return "";
+  if (text.length > 500) throw httpError(400, "連結太長（最多 500 個字元）。");
+  let u;
+  try { u = new URL(/^[a-z][a-z0-9+.-]*:/i.test(text) ? text : "https://" + text); }
+  catch { throw httpError(400, "連結格式唔啱，例如：https://shop.example.com/sale"); }
+  if (u.protocol !== "https:" && u.protocol !== "http:") throw httpError(400, "只可以用 http 或 https 開頭嘅連結。");
+  if (!u.hostname.includes(".")) throw httpError(400, "連結格式唔啱，例如：https://shop.example.com/sale");
+  return u.href;
+}
+
 function httpError(status, message, code) { const e = new Error(message); e.status = status; e.code = code; return e; }
 
 // ---------- abuse protection ----------
@@ -286,6 +299,7 @@ async function api(req, res, url) {
     const gb = {
       id: newId(), name, organiser: me, createdAt: Date.now(),
       currency: body.currency ? cleanCurrency(body.currency) : "HKD",
+      saleUrl: cleanUrl(body.saleUrl),
       shippingCents: 0, shippingSplit: "subtotal",
       items: [], participants: body.includeMe === false ? [] : [me], quantities: {},
     };
@@ -331,6 +345,10 @@ async function api(req, res, url) {
     if ("currency" in body) {
       requireOrganiser(role, "更改貨幣");
       gb.currency = cleanCurrency(body.currency);
+    }
+    if ("saleUrl" in body) {
+      requireOrganiser(role, "更改 Sale 連結");
+      gb.saleUrl = cleanUrl(body.saleUrl);
     }
     if ("shippingCents" in body || "shipping" in body) {
       gb.shippingCents = toCents(body.shipping ?? body.shippingCents / 100, "運費") || 0;
